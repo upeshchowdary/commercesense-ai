@@ -14,7 +14,20 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-LOG_PATH = Path(os.environ.get("DECISION_LOG_PATH", "decisions.log.jsonl"))
+# Anchored to the project root (not the process CWD) so the log lands
+# in the same place whether this is run from agent/, the project root
+# (Streamlit, Phase 5), or anywhere else. A bare relative env value is
+# resolved against the project root; an absolute one is used as-is.
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _resolve_project_path(env_var: str, default_name: str) -> Path:
+    raw = os.environ.get(env_var, default_name)
+    path = Path(raw)
+    return path if path.is_absolute() else _PROJECT_ROOT / path
+
+
+LOG_PATH = _resolve_project_path("DECISION_LOG_PATH", "decisions.log.jsonl")
 
 
 def log_decision(

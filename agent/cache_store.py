@@ -26,7 +26,18 @@ from pathlib import Path
 
 from schema import ResearchBundle
 
-DB_PATH = Path(os.environ.get("CACHE_DB_PATH", "research_cache.db"))
+# Anchored to the project root, not the process CWD  see decision_log.py
+# for why (same bug, same fix, both shared across the project).
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _resolve_project_path(env_var: str, default_name: str) -> Path:
+    raw = os.environ.get(env_var, default_name)
+    path = Path(raw)
+    return path if path.is_absolute() else _PROJECT_ROOT / path
+
+
+DB_PATH = _resolve_project_path("CACHE_DB_PATH", "research_cache.db")
 
 
 def _normalize_key(product_name: str) -> str:
