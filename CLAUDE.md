@@ -46,7 +46,7 @@ risk  and tell me why, before it costs me money."
 ## Phase status
 
 - [x] Phase 0  Scaffold + contracts
-- [ ] Phase 1  Agent 5 (Research Agent, Gemini + Tavily)
+- [x] Phase 1  Agent 5 (Research Agent, Gemini + Tavily)
 - [ ] Phase 2  Agent 6 (Insight Agent, grounding-enforced)
 - [ ] Phase 3  Orchestrator + live end-to-end test
 - [ ] Phase 4  Synthetic data + 3 deterministic signals
