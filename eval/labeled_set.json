@@ -1,1 +1,72 @@
-[]
+[
+  {
+    "product_id": "P001",
+    "name": "Stainless Steel Garlic Press",
+    "planted_issue": "inventory_stockout"
+  },
+  {
+    "product_id": "P002",
+    "name": "Bamboo Cutting Board Set",
+    "planted_issue": "inventory_stockout"
+  },
+  {
+    "product_id": "P003",
+    "name": "Wireless Charging Pad",
+    "planted_issue": "ppc_waste"
+  },
+  {
+    "product_id": "P004",
+    "name": "USB-C Hub 7-in-1",
+    "planted_issue": "ppc_waste"
+  },
+  {
+    "product_id": "P005",
+    "name": "Silicone Ice Cube Trays",
+    "planted_issue": "rank_drop"
+  },
+  {
+    "product_id": "P006",
+    "name": "LED Desk Lamp",
+    "planted_issue": "rank_drop"
+  },
+  {
+    "product_id": "P007",
+    "name": "Vitamin C Face Serum",
+    "planted_issue": "inventory_stockout"
+  },
+  {
+    "product_id": "P008",
+    "name": "Bluetooth Earbuds Case",
+    "planted_issue": "ppc_waste"
+  },
+  {
+    "product_id": "P009",
+    "name": "Ceramic Plant Pots (3-pack)",
+    "planted_issue": "rank_drop"
+  },
+  {
+    "product_id": "P010",
+    "name": "Resistance Bands Set",
+    "planted_issue": null
+  },
+  {
+    "product_id": "P011",
+    "name": "Stainless Steel Water Bottle",
+    "planted_issue": null
+  },
+  {
+    "product_id": "P012",
+    "name": "Collagen Face Moisturizer",
+    "planted_issue": null
+  },
+  {
+    "product_id": "P013",
+    "name": "Adjustable Yoga Mat",
+    "planted_issue": null
+  },
+  {
+    "product_id": "P014",
+    "name": "Solar Garden Lights (6-pack)",
+    "planted_issue": null
+  }
+]
