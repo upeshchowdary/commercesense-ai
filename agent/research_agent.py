@@ -41,6 +41,13 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime, timezone
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Load .env from the project root (one level up from agent/) so that
+# `python orchestrator.py` works without pre-exporting vars in the shell.
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 from google import genai
 from google.genai import types

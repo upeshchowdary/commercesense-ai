@@ -57,7 +57,7 @@ risk  and tell me why, before it costs me money."
 - [x] Phase 0  Scaffold + contracts
 - [x] Phase 1  Agent 5 (Research Agent, Gemini + Tavily)  redesigned from AFC to structured-output query planning because Gemini AFC did not reliably call web_search
 - [x] Phase 2  Agent 6 (Insight Agent, grounding-enforced)
-- [ ] Phase 3  Orchestrator + live end-to-end test
+- [x] Phase 3  Orchestrator + live end-to-end test — cold-start Samsung Galaxy Buds3 Pro passed; cache-hit (research) + live-run (insight) split confirmed on second call; load_dotenv added to both agent modules so `python orchestrator.py` works without pre-exporting vars
 - [ ] Phase 4  Synthetic data + 3 deterministic signals
 - [ ] Phase 5  Streamlit UI
 - [ ] Phase 6  Eval scripts + LIVE/PLANNED table + speaker script
