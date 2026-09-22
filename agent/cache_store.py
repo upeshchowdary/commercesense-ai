@@ -1,7 +1,19 @@
 """
 cache_store.py  a small SQLite cache so the same product isn't
 re-searched on the live web every time the demo button is clicked.
-One table, one TTL check, zero extra infrastructure.
+This is the MinIO-equivalent for this project, at zero extra
+infrastructure: one table, one TTL check.
+
+Caching here is a correctness/cost decision, not just a nice-to-have:
+without it, hitting "refresh" twice in front of judges burns search
+quota and risks a different (and possibly worse) answer the second
+time, for no reason.
+
+Cache keys are normalized (trimmed + lowercased + whitespace-collapsed)
+so "Bose QuietComfort Ultra headphones" and "bose quietcomfort ultra
+headphones" hit the same cache entry instead of silently triggering
+two separate live runs. The ORIGINAL casing is still preserved inside
+the stored bundle itself  normalization only affects the lookup key.
 """
 
 from __future__ import annotations
@@ -15,6 +27,10 @@ from pathlib import Path
 from schema import ResearchBundle
 
 DB_PATH = Path(os.environ.get("CACHE_DB_PATH", "research_cache.db"))
+
+
+def _normalize_key(product_name: str) -> str:
+    return " ".join(product_name.strip().lower().split())
 
 
 def _get_conn() -> sqlite3.Connection:
@@ -33,10 +49,11 @@ def _get_conn() -> sqlite3.Connection:
 
 def get_cached_bundle(product_name: str, ttl_hours: int) -> ResearchBundle | None:
     """Return a cached bundle if one exists and is still fresh, else None."""
+    key = _normalize_key(product_name)
     conn = _get_conn()
     row = conn.execute(
         "SELECT bundle_json, cached_at FROM research_cache WHERE product_name = ?",
-        (product_name,),
+        (key,),
     ).fetchone()
     conn.close()
 
@@ -52,6 +69,7 @@ def get_cached_bundle(product_name: str, ttl_hours: int) -> ResearchBundle | Non
 
 
 def save_bundle_to_cache(bundle: ResearchBundle) -> None:
+    key = _normalize_key(bundle.product_name)
     conn = _get_conn()
     conn.execute(
         """
@@ -62,7 +80,7 @@ def save_bundle_to_cache(bundle: ResearchBundle) -> None:
             cached_at   = excluded.cached_at
         """,
         (
-            bundle.product_name,
+            key,
             bundle.model_dump_json(),
             datetime.now(timezone.utc).isoformat(),
         ),

@@ -95,6 +95,20 @@ class _SearchCollector:
         self.queries_used: list[str] = []
 
 
+def _truncate_at_word_boundary(text: str, max_chars: int) -> str:
+    """Cut text down to at most max_chars WITHOUT slicing a word or a
+    number in half  a hard character cutoff can chop a price or a
+    sentence mid-way, which actively hurts Agent 6's ability to ground
+    an insight in it later."""
+    if len(text) <= max_chars:
+        return text
+    truncated = text[:max_chars]
+    last_space = truncated.rfind(" ")
+    if last_space > max_chars * 0.8:  # don't lose too much just to land on a boundary
+        truncated = truncated[:last_space]
+    return truncated.rstrip() + ""
+
+
 def _execute_search(query: str) -> list[dict]:
     """Runs the actual search against Tavily, or DuckDuckGo if no
     Tavily key is configured. Returns a list of {url, content} dicts."""
@@ -102,7 +116,10 @@ def _execute_search(query: str) -> list[dict]:
         try:
             result = _tavily.search(query, max_results=4)
             return [
-                {"url": r.get("url", ""), "content": r.get("content", "")[:800]}
+                {
+                    "url": r.get("url", ""),
+                    "content": _truncate_at_word_boundary(r.get("content", ""), 800),
+                }
                 for r in result.get("results", [])
             ]
         except Exception as exc:  # noqa: BLE001
@@ -114,7 +131,10 @@ def _execute_search(query: str) -> list[dict]:
         with DDGS() as ddgs:
             hits = list(ddgs.text(query, max_results=4))
         return [
-            {"url": h.get("href", ""), "content": h.get("body", "")[:800]}
+            {
+                "url": h.get("href", ""),
+                "content": _truncate_at_word_boundary(h.get("body", ""), 800),
+            }
             for h in hits
         ]
     except Exception as exc:  # noqa: BLE001
@@ -144,6 +164,22 @@ def _plan_queries(client: genai.Client, product_name: str) -> list[_PlannedQuery
     return queries[:MAX_SEARCHES]  # defensive cap even though the prompt already asks for this
 
 
+def _dedupe_queries(planned: list[_PlannedQuery]) -> list[_PlannedQuery]:
+    """Defensive: the prompt asks Gemini for distinct angles, but never
+    trust a prompt instruction alone to enforce that  the same lesson
+    this project already learned the hard way with AFC. Drop literal
+    duplicates (case/whitespace-insensitive) before they burn search
+    quota on redundant queries."""
+    seen: set[str] = set()
+    deduped: list[_PlannedQuery] = []
+    for pq in planned:
+        key = " ".join(pq.query.strip().lower().split())
+        if key not in seen:
+            seen.add(key)
+            deduped.append(pq)
+    return deduped
+
+
 def run_research_agent(product_name: str, use_cache: bool = True) -> ResearchBundle:
     """Gather live, structured findings about a product. Returns a
     ResearchBundle  never an opinion, never a conclusion."""
@@ -162,8 +198,51 @@ def run_research_agent(product_name: str, use_cache: bool = True) -> ResearchBun
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
     collector = _SearchCollector()
 
-    try:
-        planned_queries = _plan_queries(client, product_name)
+    planned_queries: list[_PlannedQuery] | None = None
+    last_error: Exception | None = None
+
+    for attempt in range(2):  # one try, one retry  never give up after a single blip
+        try:
+            planned_queries = _plan_queries(client, product_name)
+            break
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
+            log_decision(
+                agent="research_agent",
+                product_name=product_name,
+                action="planning_attempt_failed",
+                detail={"attempt": attempt + 1, "reason": str(exc)},
+            )
+
+    if planned_queries is None:
+        # Both attempts failed  fall back honestly to the weakest
+        # possible plan rather than crash. A known, logged degradation,
+        # never a silent one.
+        log_decision(
+            agent="research_agent",
+            product_name=product_name,
+            action="planning_failed_fallback",
+            detail={"reason": str(last_error)},
+        )
+        planned_queries = [
+            _PlannedQuery(
+                query=product_name,
+                reason="planning failed twice, using product name directly",
+            )
+        ]
+    else:
+        planned_queries = _dedupe_queries(planned_queries)
+        if len(planned_queries) < 2:
+            # A schema-valid plan can still be a USELESS plan (e.g. all
+            # near-duplicate queries collapsed to one). Never trust a
+            # plan just because it parsed correctly  log this
+            # explicitly so it's visible, not silently accepted.
+            log_decision(
+                agent="research_agent",
+                product_name=product_name,
+                action="degenerate_plan_warning",
+                detail={"surviving_queries": len(planned_queries)},
+            )
         log_decision(
             agent="research_agent",
             product_name=product_name,
@@ -174,19 +253,6 @@ def run_research_agent(product_name: str, use_cache: bool = True) -> ResearchBun
                 ]
             },
         )
-    except Exception as exc:  # noqa: BLE001  fail loud and safe
-        log_decision(
-            agent="research_agent",
-            product_name=product_name,
-            action="planning_failed_fallback",
-            detail={"reason": str(exc)},
-        )
-        planned_queries = [
-            _PlannedQuery(
-                query=product_name,
-                reason="planning call failed, using product name directly",
-            )
-        ]
 
     for pq in planned_queries:
         results = _execute_search(pq.query)
