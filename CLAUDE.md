@@ -59,5 +59,5 @@ risk  and tell me why, before it costs me money."
 - [x] Phase 2  Agent 6 (Insight Agent, grounding-enforced)
 - [x] Phase 3  Orchestrator + live end-to-end test — cold-start Samsung Galaxy Buds3 Pro passed; cache-hit (research) + live-run (insight) split confirmed on second call; load_dotenv added to both agent modules so `python orchestrator.py` works without pre-exporting vars
 - [x] Phase 4  Synthetic data + 3 deterministic signals  14 products/60 days each, seeded (SEED=42) generator writes ground truth to eval/labeled_set.json; all 3 detectors cross-checked clean against planted labels (9/9 planted cases detected, 0 false positives on healthy controls). Also fixed decision_log.py/cache_store.py CWD-relative path bug (committed separately) before starting  both anchored to project root now, existing log/cache migrated from agent/ with history intact
-- [ ] Phase 5  Streamlit UI
+- [ ] Phase 5  Streamlit UI  Part A implementation complete (theming + synthetic Signal Dashboard); Part B pending (live intelligence, decision trace, approval gate, 3D CUBE hero). Human visual sign-off still required.
 - [ ] Phase 6  Eval scripts + LIVE/PLANNED table + speaker script
