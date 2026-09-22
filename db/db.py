@@ -121,9 +121,21 @@ def get_detected_signals(product_id: str | None = None) -> list[sqlite3.Row]:
 
 
 def clear_detected_signals() -> None:
-    """Wipe detected_signals so signal detectors can be re-run cleanly
-    without accumulating duplicate rows across repeated demo runs."""
+    """Wipe ALL detected_signals rows, across every signal type. For a
+    full reset (e.g. after regenerating synthetic data) — never call
+    this from inside a single detector's run, or it would erase the
+    other two detectors' results too."""
     conn = get_connection()
     conn.execute("DELETE FROM detected_signals")
+    conn.commit()
+    conn.close()
+
+
+def clear_detected_signals_by_type(signal_type: str) -> None:
+    """Wipe only this signal type's rows, so a detector can be re-run
+    idempotently (same result set, not accumulating duplicates) without
+    touching the other detectors' already-recorded signals."""
+    conn = get_connection()
+    conn.execute("DELETE FROM detected_signals WHERE signal_type = ?", (signal_type,))
     conn.commit()
     conn.close()

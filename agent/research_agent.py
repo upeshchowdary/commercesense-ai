@@ -159,6 +159,15 @@ def _plan_queries(client: genai.Client, product_name: str) -> list[_PlannedQuery
             response_mime_type="application/json",
             response_schema=list[_PlannedQuery],
             max_output_tokens=512,
+            # No tools are passed, but the SDK still defaults every
+            # generate_content call onto its AFC code path unless told
+            # otherwise (confirmed by reading _extra_utils.should_disable_afc
+            # in google-genai 2.24.0) — explicitly disabling it here makes
+            # actual behavior match this function's "no AFC" comment above,
+            # instead of relying on an absence of tools to imply it.
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(
+                disable=True
+            ),
         ),
     )
     planned = response.parsed

@@ -205,6 +205,15 @@ def _call_gemini_for_insights(
             response_mime_type="application/json",
             response_schema=list[Insight],
             max_output_tokens=2048,
+            # See the matching comment in research_agent.py's _plan_queries:
+            # the SDK defaults to its AFC code path on every call unless
+            # this is set, regardless of whether tools are passed. Without
+            # it, this file's own "No AFC advisory warning should print"
+            # claim above was false in practice (verified: the warning did
+            # print). Disabling it explicitly makes that claim actually true.
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(
+                disable=True
+            ),
         ),
     )
     insights_raw = response.parsed

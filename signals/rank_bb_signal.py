@@ -60,6 +60,10 @@ def check_rank_bb_signal(product_id: str) -> dict | None:
 
 
 def run_rank_bb_signal_for_all_products() -> int:
+    """Idempotent: clears this signal type's prior rows first, so
+    re-running (e.g. a Phase 5 refresh) reflects current data instead
+    of accumulating duplicate detections alongside old ones."""
+    db.clear_detected_signals_by_type("rank_drop")
     flagged = 0
     for product in db.get_products():
         evidence = check_rank_bb_signal(product["product_id"])
