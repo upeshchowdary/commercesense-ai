@@ -16,6 +16,14 @@ One-sentence outcome: "Flag which of my products need attention this
 week  stockout, wasted ad spend, falling rank, or policy/market
 risk  and tell me why, before it costs me money."
 
+## Environment notes
+
+- Confirmed working Python version: 3.12.14.
+- The project `.venv` was rebuilt once in this session against Python 3.12.
+- If imports fail with `ModuleNotFoundError`, the venv likely needs a rebuild;
+  check `.venv\Scripts\python.exe --version` before assuming source code is
+  broken.
+
 ## Architecture  two halves that must never mix
 
 1. SYNTHETIC side  3 deterministic signal detectors (inventory

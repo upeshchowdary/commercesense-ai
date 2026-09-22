@@ -39,6 +39,7 @@ silent guess.
 from __future__ import annotations
 
 import os
+import re
 from datetime import datetime, timezone
 
 from google import genai
@@ -125,6 +126,65 @@ def _apply_grounding_guardrail(insights: list[Insight]) -> list[Insight]:
     return insights
 
 
+_PRICE_PATTERN = re.compile(r"\$\s?\d{1,4}(?:\.\d{2})?")
+
+
+def _find_distinct_prices(bundle: ResearchBundle) -> set[str]:
+    """Extract distinct dollar-amount mentions across all findings  a
+    cheap, deterministic signal for whether the source data actually
+    disagrees on price. NOT a source of truth for what the price is;
+    it exists only to catch the model being overconfident when the
+    underlying evidence is visibly inconsistent.
+
+    Verified against real output: the prompt instruction telling the
+    model not to cherry-pick a single price did NOT reliably work on
+    its own (Bose QuietComfort Ultra test  the model confidently
+    synthesized $449 + $269 as "high" confidence while the bundle
+    actually contained 4+ distinct price points from independent
+    sources). Same lesson as the grounding guardrail: never trust a
+    prompt instruction alone when a cheap code-level check can verify
+    it instead."""
+    prices: set[str] = set()
+    for f in bundle.findings:
+        for match in _PRICE_PATTERN.findall(f.snippet):
+            prices.add(match.replace(" ", ""))
+    return prices
+
+
+def _apply_price_disagreement_guardrail(
+    insights: list[Insight], bundle: ResearchBundle
+) -> list[Insight]:
+    """If the pricing insight claims "high" confidence but the source
+    findings actually contain 3+ distinct price mentions, downgrade to
+    "medium" rather than let a single confident-sounding synthesis
+    stand unquestioned. Logged explicitly so the downgrade is visible,
+    never silent."""
+    distinct_prices = _find_distinct_prices(bundle)
+    pricing_insight = next(
+        (i for i in insights if i.category == "pricing"), None
+    )
+    if (
+        pricing_insight is not None
+        and pricing_insight.confidence == "high"
+        and len(distinct_prices) >= 3
+    ):
+        pricing_insight.confidence = "medium"
+        log_decision(
+            agent="insight_agent",
+            product_name=bundle.product_name,
+            action="price_disagreement_downgrade",
+            detail={
+                "reason": (
+                    "3+ distinct price mentions found across findings; "
+                    "downgraded high confidence to medium rather than "
+                    "trust a single high-confidence synthesis"
+                ),
+                "distinct_prices_found": sorted(distinct_prices),
+            },
+        )
+    return insights
+
+
 def _call_gemini_for_insights(
     client: genai.Client, bundle: ResearchBundle
 ) -> list[Insight]:
@@ -185,6 +245,7 @@ def run_insight_agent(bundle: ResearchBundle) -> InsightReport:
 
     insights = _fill_missing_categories(insights)
     insights = _apply_grounding_guardrail(insights)
+    insights = _apply_price_disagreement_guardrail(insights, bundle)
 
     grounded = sum(1 for i in insights if i.confidence != "none")
     report = InsightReport(
