@@ -1,3 +1,4 @@
+
 # sydon-1  Amazon Seller Copilot (CUBE Buildathon practice project)
 
 This file is the persistent project memory. Read it at the start of
@@ -46,7 +47,7 @@ risk  and tell me why, before it costs me money."
 ## Phase status
 
 - [x] Phase 0  Scaffold + contracts
-- [x] Phase 1  Agent 5 (Research Agent, Gemini + Tavily)
+- [x] Phase 1  Agent 5 (Research Agent, Gemini + Tavily)  redesigned from AFC to structured-output query planning because Gemini AFC did not reliably call web_search
 - [ ] Phase 2  Agent 6 (Insight Agent, grounding-enforced)
 - [ ] Phase 3  Orchestrator + live end-to-end test
 - [ ] Phase 4  Synthetic data + 3 deterministic signals

@@ -1,32 +1,39 @@
 """
 research_agent.py  Agent 5: Market Intelligence Agent (LIVE)
 
-Given a product name, this agent decides what's worth searching for on
-the live web, calls a single scoped web_search tool (backed by Tavily,
-falling back to DuckDuckGo if no Tavily key is set), and returns a
-structured, UNINTERPRETED bundle of findings. It draws no conclusions 
-that is Agent 6's job (insight_agent.py, Phase 2).
+Given a product name, this agent plans up to MAX_SEARCHES distinct
+search queries via Gemini structured output, executes them against
+Tavily (or DuckDuckGo as a fallback), and returns a structured,
+UNINTERPRETED bundle of findings. It draws no conclusions  that is
+Agent 6's job (insight_agent.py, Phase 2).
+
+DESIGN NOTE  why this doesn't use Gemini's automatic function calling:
+Three independent attempts to get Gemini to reliably call a web_search
+tool via automatic function calling (default AUTO mode, forced ANY
+mode, and the SDK's own recommended Chat.send_message path) all
+produced the same result: Gemini returned without ever invoking the
+tool. This is a reproducible SDK/model-behavior issue, confirmed by
+testing the same underlying mechanism three different ways across
+three different products.
+
+Instead, this agent uses a two-step, AFC-free design:
+  1. PLAN  ask Gemini for a list of up to MAX_SEARCHES distinct
+     search queries (with reasons), via response_schema structured
+     output. No tools involved at all.
+  2. EXECUTE  run that plan ourselves, in plain Python, calling
+     Tavily/DDG directly for each planned query.
+
+This keeps the model's judgment (deciding what's worth searching)
+while removing the fragile automatic-calling machinery entirely.
 
 CUBE alignment:
-  - Tools: exactly one tool (web_search), scoped, hard-capped.
+  - Tools: search execution is plain code, scoped and capped.
   - Context: every finding keeps its source_url + retrieved_at.
-  - Decision tracing: every run appends an entry to decisions.log.jsonl.
+  - Decision tracing: the plan itself (queries + reasons) is logged,
+    not just the outcome  "who decided what, on what evidence."
   - Accountability: this is the only part of the project that spends
     real, metered quota  it must never run automatically, only on
     demand (enforced by the caller in later phases, not here).
-
-Uses Gemini's automatic function calling, forced via tool_config
-mode="ANY". The default AUTO mode lets the model decide not to call
-any tool at all  observed in testing, where the model sometimes
-answered from training-data recall instead of searching. ANY mode
-forces a function call on every turn instead of leaving that
-decision to the model. automatic_function_calling.maximum_remote_calls
-is capped to exactly MAX_SEARCHES so every forced round-trip is a
-genuine search, not a wasted extra call after the budget is spent.
-
-A minimal fallback (exactly one search, using the product name itself)
-covers the residual edge case where zero tool calls still happen
-somehow  logged explicitly, never silent.
 """
 
 from __future__ import annotations
@@ -37,6 +44,7 @@ from datetime import datetime, timezone
 
 from google import genai
 from google.genai import types
+from pydantic import BaseModel
 
 from schema import ResearchBundle, SearchFinding
 from cache_store import get_cached_bundle, save_bundle_to_cache
@@ -55,36 +63,34 @@ except ImportError:
 
 
 MODEL = os.environ.get("RESEARCH_AGENT_MODEL", "gemini-2.5-flash")
-MAX_SEARCHES = 4  # hard cap  enforced in code, not just in the prompt
+MAX_SEARCHES = 4
 CACHE_TTL_HOURS = 6
 
-SYSTEM_PROMPT = """You are a market research agent for an Amazon seller's \
-assistant tool. You are given one product. Your only job is to decide \
-what to search for and call the web_search tool to gather RAW \
-information about that product from the live web: news, pricing \
-mentions, competitor products, trends, known issues or complaints.
+PLANNING_PROMPT = """You are a market research planner for an Amazon \
+seller's assistant tool. You are given one product. Your only job is \
+to plan up to {max_searches} distinct web search queries that would \
+gather useful RAW information about it: current pricing, recent news, \
+competitor products, and known issues or complaints.
 
 Rules:
-- You have at most {max_searches} searches available. Spend them on \
-  distinct angles  for example: current pricing, recent news, \
-  competitor products, known issues/complaints. Do not repeat a \
-  near-identical query.
-- Do NOT draw conclusions, do NOT summarize, do NOT decide what \
-  matters. A separate agent handles that. Your only job is to gather.
-- Even if you believe you already know about this product, you must \
-  still search  your own prior knowledge may be outdated, and this \
-  tool's entire purpose is finding what's true right now.
+- Return at most {max_searches} queries. Fewer is fine if the product \
+  is narrow, but cover distinct angles  do not return near-duplicate \
+  queries.
+- For each query, give a short one-phrase reason it's worth searching.
+- Do NOT answer the questions yourself. Do NOT draw conclusions about \
+  the product. Your only job is to plan what to search for.
 """
 
 
-class _SearchCollector:
-    """Accumulates real search results across however many times
-    Gemini's automatic function calling invokes web_search during one
-    generate_content call."""
+class _PlannedQuery(BaseModel):
+    query: str
+    reason: str
 
-    def __init__(self, max_searches: int) -> None:
-        self.max_searches = max_searches
-        self.calls_made = 0
+
+class _SearchCollector:
+    """Accumulates real search results as planned queries are executed."""
+
+    def __init__(self) -> None:
         self.findings: list[SearchFinding] = []
         self.queries_used: list[str] = []
 
@@ -99,7 +105,7 @@ def _execute_search(query: str) -> list[dict]:
                 {"url": r.get("url", ""), "content": r.get("content", "")[:800]}
                 for r in result.get("results", [])
             ]
-        except Exception as exc:  # noqa: BLE001  surface, don't crash the run
+        except Exception as exc:  # noqa: BLE001
             return [{"url": "", "content": f"[search error: {exc}]"}]
 
     try:
@@ -113,6 +119,29 @@ def _execute_search(query: str) -> list[dict]:
         ]
     except Exception as exc:  # noqa: BLE001
         return [{"url": "", "content": f"[no search backend available: {exc}]"}]
+
+
+def _plan_queries(client: genai.Client, product_name: str) -> list[_PlannedQuery]:
+    """Ask Gemini to plan up to MAX_SEARCHES distinct search queries,
+    via structured output  no tools, no automatic function calling."""
+    response = client.models.generate_content(
+        model=MODEL,
+        contents=f"Product: {product_name!r}",
+        config=types.GenerateContentConfig(
+            system_instruction=PLANNING_PROMPT.format(max_searches=MAX_SEARCHES),
+            response_mime_type="application/json",
+            response_schema=list[_PlannedQuery],
+            max_output_tokens=512,
+        ),
+    )
+    planned = response.parsed
+    if not planned:
+        raise ValueError("Gemini returned no query plan")
+    queries = [
+        item if isinstance(item, _PlannedQuery) else _PlannedQuery.model_validate(item)
+        for item in planned
+    ]
+    return queries[:MAX_SEARCHES]  # defensive cap even though the prompt already asks for this
 
 
 def run_research_agent(product_name: str, use_cache: bool = True) -> ResearchBundle:
@@ -131,75 +160,41 @@ def run_research_agent(product_name: str, use_cache: bool = True) -> ResearchBun
             return cached
 
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-    collector = _SearchCollector(MAX_SEARCHES)
+    collector = _SearchCollector()
 
-    def web_search(query: str) -> str:
-        """Search the live web for real-time information about a product.
-
-        Use this to find news, pricing mentions, competitor products, or
-        trend/complaint signals. Each call costs quota, so make queries
-        specific and avoid repeating the same angle twice.
-
-        Args:
-            query: A specific, non-redundant search query.
-        """
-        if collector.calls_made >= collector.max_searches:
-            return json.dumps(
-                {"error": "search budget exhausted  stop calling this tool"}
-            )
-
-        collector.calls_made += 1
-        collector.queries_used.append(query)
-        results = _execute_search(query)
-
-        for r in results:
-            collector.findings.append(
-                SearchFinding(
-                    query=query,
-                    source_url=r["url"],
-                    snippet=r["content"],
-                    retrieved_at=datetime.now(timezone.utc).isoformat(),
-                )
-            )
-
-        return json.dumps({"query": query, "results": results})
-
-    client.models.generate_content(
-        model=MODEL,
-        contents=f"Gather live web information about this product: {product_name!r}",
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT.format(max_searches=MAX_SEARCHES),
-            tools=[web_search],
-            tool_config=types.ToolConfig(
-                function_calling_config=types.FunctionCallingConfig(mode="ANY")
-            ),
-            automatic_function_calling=types.AutomaticFunctionCallingConfig(
-                maximum_remote_calls=MAX_SEARCHES
-            ),
-        ),
-    )
-    # Automatic function calling has already run the full loop by the
-    # time generate_content returns  collector is fully populated,
-    # UNLESS the fallback below had to fire.
-
-    if collector.calls_made == 0:
-        # Forcing mode="ANY" should make this unreachable. If it still
-        # happens, don't return an empty bundle silently  log it
-        # clearly and do exactly one search so downstream agents still
-        # get something real to work with.
+    try:
+        planned_queries = _plan_queries(client, product_name)
         log_decision(
             agent="research_agent",
             product_name=product_name,
-            action="zero_tool_calls_fallback",
-            detail={"reason": "Gemini made no tool calls despite mode=ANY"},
+            action="query_plan_created",
+            detail={
+                "queries": [
+                    {"query": q.query, "reason": q.reason} for q in planned_queries
+                ]
+            },
         )
-        fallback_results = _execute_search(product_name)
-        collector.queries_used.append(product_name)
-        collector.calls_made += 1
-        for r in fallback_results:
+    except Exception as exc:  # noqa: BLE001  fail loud and safe
+        log_decision(
+            agent="research_agent",
+            product_name=product_name,
+            action="planning_failed_fallback",
+            detail={"reason": str(exc)},
+        )
+        planned_queries = [
+            _PlannedQuery(
+                query=product_name,
+                reason="planning call failed, using product name directly",
+            )
+        ]
+
+    for pq in planned_queries:
+        results = _execute_search(pq.query)
+        collector.queries_used.append(pq.query)
+        for r in results:
             collector.findings.append(
                 SearchFinding(
-                    query=product_name,
+                    query=pq.query,
                     source_url=r["url"],
                     snippet=r["content"],
                     retrieved_at=datetime.now(timezone.utc).isoformat(),
