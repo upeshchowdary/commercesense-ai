@@ -48,7 +48,7 @@ risk  and tell me why, before it costs me money."
 
 - [x] Phase 0  Scaffold + contracts
 - [x] Phase 1  Agent 5 (Research Agent, Gemini + Tavily)  redesigned from AFC to structured-output query planning because Gemini AFC did not reliably call web_search
-- [ ] Phase 2  Agent 6 (Insight Agent, grounding-enforced)
+- [x] Phase 2  Agent 6 (Insight Agent, grounding-enforced)
 - [ ] Phase 3  Orchestrator + live end-to-end test
 - [ ] Phase 4  Synthetic data + 3 deterministic signals
 - [ ] Phase 5  Streamlit UI
