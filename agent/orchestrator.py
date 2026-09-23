@@ -12,18 +12,16 @@ from __future__ import annotations
 
 from research_agent import run_research_agent
 from insight_agent import run_insight_agent
-from schema import InsightReport
+from schema import InsightReport, ResearchBundle
 from decision_log import log_decision
 
 
-def run_market_intelligence(product_name: str, use_cache: bool = True) -> InsightReport:
-    """Full live pipeline: research -> insight.
-
-    This is the function a "Refresh live intelligence" button in the
-    UI (Phase 5) should call. It is never called automatically or on a
-    schedule — only when a human asks for it, because every call here
-    spends real, metered search + LLM quota.
-    """
+def _run_pipeline(product_name: str, use_cache: bool) -> tuple[ResearchBundle, InsightReport]:
+    """The one place the full research -> insight pipeline actually
+    runs. Both public functions below call this instead of each
+    keeping their own copy of the same two calls + logging — a second
+    copy is exactly the kind of thing that quietly drifts out of sync
+    with this one over time."""
     log_decision(
         agent="orchestrator",
         product_name=product_name,
@@ -45,7 +43,29 @@ def run_market_intelligence(product_name: str, use_cache: bool = True) -> Insigh
         },
     )
 
+    return bundle, report
+
+
+def run_market_intelligence(product_name: str, use_cache: bool = True) -> InsightReport:
+    """Full live pipeline: research -> insight.
+
+    This is the function a "Refresh live intelligence" button in the
+    UI should call. It is never called automatically or on a
+    schedule — only when a human asks for it, because every call here
+    spends real, metered search + LLM quota.
+    """
+    _, report = _run_pipeline(product_name, use_cache)
     return report
+
+
+def run_market_intelligence_with_evidence(
+    product_name: str, use_cache: bool = True
+) -> tuple[ResearchBundle, InsightReport]:
+    """Same pipeline as run_market_intelligence, but also returns the
+    raw ResearchBundle — for callers (the API's Evidence panel) that
+    need Agent 5's raw findings alongside Agent 6's grounded insights,
+    not just the final report."""
+    return _run_pipeline(product_name, use_cache)
 
 
 if __name__ == "__main__":

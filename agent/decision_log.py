@@ -49,3 +49,43 @@ def log_decision(
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     with LOG_PATH.open("a", encoding="utf-8") as f:
         f.write(json.dumps(entry) + "\n")
+
+
+def read_decisions(
+    limit: int | None = None,
+    product_name: str | None = None,
+    agent: str | None = None,
+    action: str | None = None,
+) -> list[dict]:
+    """Read back the append-only trace, newest first. Pure read — never
+    mutates LOG_PATH. Filters are exact-match (product_name is matched
+    case-insensitively since it's free text passed by callers)."""
+    if not LOG_PATH.exists():
+        return []
+
+    entries: list[dict] = []
+    with LOG_PATH.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                # A single corrupted line must never take down every
+                # reader of the trace (activity feed, agent status,
+                # product detail) — skip it and keep going.
+                continue
+
+    if product_name is not None:
+        needle = product_name.strip().lower()
+        entries = [e for e in entries if e.get("product_name", "").strip().lower() == needle]
+    if agent is not None:
+        entries = [e for e in entries if e.get("agent") == agent]
+    if action is not None:
+        entries = [e for e in entries if e.get("action") == action]
+
+    entries.reverse()  # newest first
+    if limit is not None:
+        entries = entries[:limit]
+    return entries

@@ -116,36 +116,39 @@ def _truncate_at_word_boundary(text: str, max_chars: int) -> str:
     return truncated.rstrip() + ""
 
 
-def _execute_search(query: str) -> list[dict]:
-    """Runs the actual search against Tavily, or DuckDuckGo if no
-    Tavily key is configured. Returns a list of {url, content} dicts."""
-    if _tavily is not None:
-        try:
-            result = _tavily.search(query, max_results=4)
-            return [
-                {
-                    "url": r.get("url", ""),
-                    "content": _truncate_at_word_boundary(r.get("content", ""), 800),
-                }
-                for r in result.get("results", [])
-            ]
-        except Exception as exc:  # noqa: BLE001
-            return [{"url": "", "content": f"[search error: {exc}]"}]
+def _execute_search(query: str, product_name: str) -> list[dict]:
+    """Runs the actual search against Tavily  the only search backend
+    this project is allowed to call at runtime (standing rule 2). A
+    failed or missing backend is logged and yields NO findings, never
+    a fake finding standing in for a result  an error string with an
+    empty source_url would otherwise be indistinguishable from a real,
+    citable finding to Agent 6 downstream."""
+    if _tavily is None:
+        log_decision(
+            agent="research_agent",
+            product_name=product_name,
+            action="search_backend_missing",
+            detail={"query": query, "reason": "TAVILY_API_KEY not configured"},
+        )
+        return []
 
     try:
-        from duckduckgo_search import DDGS
-
-        with DDGS() as ddgs:
-            hits = list(ddgs.text(query, max_results=4))
+        result = _tavily.search(query, max_results=4)
         return [
             {
-                "url": h.get("href", ""),
-                "content": _truncate_at_word_boundary(h.get("body", ""), 800),
+                "url": r.get("url", ""),
+                "content": _truncate_at_word_boundary(r.get("content", ""), 800),
             }
-            for h in hits
+            for r in result.get("results", [])
         ]
     except Exception as exc:  # noqa: BLE001
-        return [{"url": "", "content": f"[no search backend available: {exc}]"}]
+        log_decision(
+            agent="research_agent",
+            product_name=product_name,
+            action="search_failed",
+            detail={"query": query, "reason": str(exc)},
+        )
+        return []
 
 
 def _plan_queries(client: genai.Client, product_name: str) -> list[_PlannedQuery]:
@@ -271,7 +274,7 @@ def run_research_agent(product_name: str, use_cache: bool = True) -> ResearchBun
         )
 
     for pq in planned_queries:
-        results = _execute_search(pq.query)
+        results = _execute_search(pq.query, product_name)
         collector.queries_used.append(pq.query)
         for r in results:
             collector.findings.append(

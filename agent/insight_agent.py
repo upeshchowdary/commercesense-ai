@@ -133,6 +133,48 @@ def _apply_grounding_guardrail(insights: list[Insight]) -> list[Insight]:
     return insights
 
 
+def _norm(s: str) -> str:
+    return " ".join(s.split()).lower()
+
+
+def _apply_source_match_guardrail(
+    insights: list[Insight], bundle: ResearchBundle
+) -> list[Insight]:
+    """Rule 4 is "must cite a source_snippet that actually appears in
+    Agent 5's findings"  not just "has a non-empty source_snippet".
+    The grounding guardrail above only checks the latter, which lets a
+    fluent, well-formatted but INVENTED quote pass as grounded. This
+    checks the former: the cited snippet must be a literal (whitespace
+    normalized, case-insensitive) substring of some finding's snippet,
+    and the source_url is then trusted from that finding  not
+    whatever the model claimed  since a matching snippet with a
+    mismatched URL is itself suspicious."""
+    corpus = [(_norm(f.snippet), f.source_url) for f in bundle.findings if f.snippet]
+    for insight in insights:
+        if insight.confidence == "none" or not insight.source_snippet:
+            continue
+        needle = _norm(insight.source_snippet)
+        match_url = next((url for text, url in corpus if needle and needle in text), None)
+        if match_url is None:
+            log_decision(
+                agent="insight_agent",
+                product_name=bundle.product_name,
+                action="grounding_strip",
+                detail={
+                    "category": insight.category,
+                    "reason": "source_snippet not found verbatim in any finding",
+                    "claimed_snippet": insight.source_snippet[:200],
+                },
+            )
+            insight.summary = None
+            insight.confidence = "none"
+            insight.source_snippet = None
+            insight.source_url = None
+        else:
+            insight.source_url = match_url
+    return insights
+
+
 _PRICE_PATTERN = re.compile(r"\$\s?\d{1,4}(?:\.\d{2})?")
 
 
@@ -261,6 +303,7 @@ def run_insight_agent(bundle: ResearchBundle) -> InsightReport:
 
     insights = _fill_missing_categories(insights)
     insights = _apply_grounding_guardrail(insights)
+    insights = _apply_source_match_guardrail(insights, bundle)
     insights = _apply_price_disagreement_guardrail(insights, bundle)
 
     grounded = sum(1 for i in insights if i.confidence != "none")
