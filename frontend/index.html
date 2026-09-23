@@ -6,6 +6,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sydon-1 · Seller Copilot</title>
     <meta name="description" content="AI agents that research products, detect signals, explain the evidence, and surface decisions that matter." />
+    <script>
+      // Apply the persisted theme before first paint so there's no
+      // flash of dark (the default) then light on reload. Mirrors
+      // src/hooks/useTheme.ts's storage key and fallback exactly.
+      (function () {
+        try {
+          if (localStorage.getItem('sydon-theme') === 'light') {
+            document.documentElement.dataset.theme = 'light';
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

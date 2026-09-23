@@ -3,7 +3,10 @@
 /*
   Design tokens — this project's own established internal palette,
   carried forward from the Streamlit UI it replaces (ui/theme.py),
-  not any third party's brand. Dark-first; there is no light mode.
+  not any third party's brand. Dark-first: dark is the default and
+  the tuned experience; light is an explicit opt-in toggle (see
+  ThemeToggle.tsx), not derived from OS preference, so the app never
+  silently switches out from under a judge mid-demo.
 */
 :root {
   --bg: #0b0e14;
@@ -27,6 +30,33 @@
   --yellow-soft: rgba(240, 198, 116, 0.14);
 
   --radius: 0.875rem;
+}
+
+/* Light mode — same hues, deepened where needed to hold AA contrast
+   on white/near-white surfaces (badges and links render colored TEXT,
+   not just tinted backgrounds, so a straight brightness flip isn't
+   enough). Applied via [data-theme="light"] on <html>, set by
+   ThemeToggle.tsx / the inline bootstrap script in index.html. */
+:root[data-theme='light'] {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --panel-elevated: #ffffff;
+  --panel-border: #e3e6ec;
+  --text: #12141c;
+  --text-muted: #5b6472;
+  --text-faint: #8590a1;
+
+  --amber: #a8690f;
+  --amber-soft: rgba(168, 105, 15, 0.1);
+  --blue: #0b76b8;
+  --blue-deep: #0a5aa0;
+  --blue-soft: rgba(11, 118, 184, 0.1);
+  --green: #14825a;
+  --green-soft: rgba(20, 130, 90, 0.1);
+  --red: #c73e3e;
+  --red-soft: rgba(199, 62, 62, 0.1);
+  --yellow: #94690a;
+  --yellow-soft: rgba(148, 105, 10, 0.1);
 }
 
 @theme inline {
@@ -88,6 +118,10 @@
 
 html {
   color-scheme: dark;
+}
+
+html[data-theme='light'] {
+  color-scheme: light;
 }
 
 body {

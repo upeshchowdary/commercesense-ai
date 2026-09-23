@@ -50,7 +50,7 @@ export function CubeHero() {
         {FACES.map((face) => (
           <div
             key={face.label}
-            className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-border bg-panel/90 backdrop-blur-sm"
+            className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-border bg-panel shadow-lg backdrop-blur-sm"
             style={{ transform: face.transform }}
           >
             <span className="text-xs font-semibold tracking-[0.2em] text-primary">{face.label}</span>

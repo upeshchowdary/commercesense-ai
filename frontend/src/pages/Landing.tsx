@@ -5,12 +5,16 @@ import { Button } from '@/components/ui/button'
 import { CubeHero } from '@/components/cube/CubeHero'
 import { PipelineFlow } from '@/components/cube/PipelineFlow'
 import { DemoMode } from '@/components/demo/DemoMode'
+import { ThemeToggle } from '@/components/shared/ThemeToggle'
 
 export default function Landing() {
   const [demoOpen, setDemoOpen] = useState(false)
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-10 px-6 py-16">
+    <div className="relative flex min-h-screen flex-col items-center justify-center gap-10 px-6 py-16">
+      <div className="absolute right-6 top-6">
+        <ThemeToggle />
+      </div>
       <CubeHero />
       <div className="flex max-w-2xl flex-col items-center gap-4 text-center">
         <span className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">

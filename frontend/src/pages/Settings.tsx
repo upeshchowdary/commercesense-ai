@@ -1,17 +1,52 @@
-import { CheckCircle2, XCircle } from 'lucide-react'
+import { CheckCircle2, Moon, Sun, XCircle } from 'lucide-react'
 import { AppShell } from '@/components/layout/AppShell'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { CardSkeleton } from '@/components/shared/Skeletons'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 import { useHealth } from '@/hooks/useHealth'
+import { useTheme } from '@/hooks/useTheme'
 
 export default function Settings() {
   const { data, isLoading, isError, refetch } = useHealth()
+  const { theme, setTheme } = useTheme()
 
   return (
     <AppShell title="Settings">
       <div className="mx-auto flex max-w-2xl flex-col gap-5">
+        <Card>
+          <CardHeader>
+            <CardTitle>Appearance</CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center gap-2">
+            <button
+              onClick={() => setTheme('dark')}
+              className={cn(
+                'flex flex-1 flex-col items-center gap-2 rounded-lg border px-4 py-3 text-sm transition-colors',
+                theme === 'dark'
+                  ? 'border-primary/50 bg-primary/10 text-foreground'
+                  : 'border-border text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <Moon className="size-4" />
+              Dark
+            </button>
+            <button
+              onClick={() => setTheme('light')}
+              className={cn(
+                'flex flex-1 flex-col items-center gap-2 rounded-lg border px-4 py-3 text-sm transition-colors',
+                theme === 'light'
+                  ? 'border-primary/50 bg-primary/10 text-foreground'
+                  : 'border-border text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <Sun className="size-4" />
+              Light
+            </button>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Backend Connectivity</CardTitle>

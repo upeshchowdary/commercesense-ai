@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { DemoMode } from '@/components/demo/DemoMode'
+import { ThemeToggle } from '@/components/shared/ThemeToggle'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { NAV_ITEMS } from './Sidebar'
 import { cn } from '@/lib/utils'
@@ -68,6 +69,7 @@ export function Topbar({ title, actions }: { title: string; actions?: ReactNode 
       </div>
       <div className="flex items-center gap-2">
         {actions}
+        <ThemeToggle />
         <Button variant="outline" size="sm" onClick={() => setDemoOpen(true)}>
           <PlayCircle className="size-3.5" />
           Demo
