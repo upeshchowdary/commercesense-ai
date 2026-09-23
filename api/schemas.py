@@ -43,3 +43,49 @@ class DecisionRequest(_ProductNameMixin):
     decision: Literal["approved", "rejected", "more_research_requested"]
     reason: Optional[str] = None
     decided_by: Optional[str] = "Demo User"
+
+
+# ---------------------------------------------------- Intelligence modules
+
+class IntelligenceApproveRequest(BaseModel):
+    """Shared shape for every module's /approve endpoint. Delegates to the
+    exact same decision_log.py mechanism as /api/decisions — `field`
+    identifies which specific recommendation this concerns (e.g. "title",
+    "price_range", "reorder_quantity", "review_theme:warping")."""
+
+    decision: Literal["approved", "rejected", "more_research_requested"]
+    field: Optional[str] = None
+    reason: Optional[str] = None
+    decided_by: Optional[str] = "Demo User"
+
+
+class ListingRewriteRequest(BaseModel):
+    use_ai: bool = True
+
+
+class PricingAnalyzeRequest(BaseModel):
+    use_live_research: bool = False  # if true, calls the (reused) Research Agent for competitor prices
+
+
+class PricingSimulateRequest(BaseModel):
+    new_price: float = Field(gt=0, le=100000)
+    ad_spend_levels: Optional[list[float]] = None
+
+
+class InventorySimulateRequest(BaseModel):
+    reorder_quantity: int = Field(ge=0, le=1_000_000)
+    lead_time_days: Optional[int] = Field(default=None, ge=1, le=365)
+
+
+class InboundShipment(BaseModel):
+    day_offset: int = Field(ge=0, le=365)
+    quantity: int = Field(ge=0, le=1_000_000)
+
+
+class InventoryForecastRequest(BaseModel):
+    days_ahead: int = Field(default=30, ge=1, le=180)
+    inbound: list[InboundShipment] = Field(default_factory=list)
+
+
+class ReviewRefreshRequest(BaseModel):
+    window_days: int = Field(default=30, ge=7, le=90)

@@ -42,6 +42,39 @@ _AGENT_META = [
         "kind": "live",
         "log_agent_names": ["orchestrator"],
     },
+    {
+        "id": "listing_intelligence",
+        "name": "Listing Intelligence Agent",
+        "technology": "Deterministic rules + optional LLM (Ollama/Gemini)",
+        "purpose": "Scores listing completeness/quality and proposes grounded rewrites.",
+        "kind": "synthetic",
+        "mode": "Grounding-Enforced",
+        "log_agent_names": ["listing_intelligence"],
+    },
+    {
+        "id": "pricing_intelligence",
+        "name": "Pricing Intelligence Agent",
+        "technology": "Deterministic financial math + optional LLM",
+        "purpose": "Computes margin, breakeven, and a justified price range.",
+        "kind": "synthetic",
+        "log_agent_names": ["pricing_intelligence"],
+    },
+    {
+        "id": "review_intelligence",
+        "name": "Review Intelligence Agent",
+        "technology": "Deterministic statistics/theme frequency + optional LLM",
+        "purpose": "Surfaces rating trends, complaint themes, and emerging issues.",
+        "kind": "synthetic",
+        "log_agent_names": ["review_intelligence"],
+    },
+    {
+        "id": "inventory_intelligence",
+        "name": "Inventory Intelligence Agent",
+        "technology": "Deterministic demand/forecast math + optional LLM",
+        "purpose": "Computes days of cover, reorder point, and reorder quantity.",
+        "kind": "synthetic",
+        "log_agent_names": ["inventory_intelligence"],
+    },
 ]
 
 

@@ -1,0 +1,114 @@
+[
+  {
+    "product_id": "P001",
+    "name": "Stainless Steel Garlic Press",
+    "poor_listing": true,
+    "below_margin_floor": false,
+    "emerging_review_issue": null,
+    "negative_review_cluster": false
+  },
+  {
+    "product_id": "P002",
+    "name": "Bamboo Cutting Board Set",
+    "poor_listing": false,
+    "below_margin_floor": false,
+    "emerging_review_issue": "warping",
+    "negative_review_cluster": false
+  },
+  {
+    "product_id": "P003",
+    "name": "Wireless Charging Pad",
+    "poor_listing": false,
+    "below_margin_floor": true,
+    "emerging_review_issue": null,
+    "negative_review_cluster": false
+  },
+  {
+    "product_id": "P004",
+    "name": "USB-C Hub 7-in-1",
+    "poor_listing": true,
+    "below_margin_floor": false,
+    "emerging_review_issue": null,
+    "negative_review_cluster": false
+  },
+  {
+    "product_id": "P005",
+    "name": "Silicone Ice Cube Trays",
+    "poor_listing": false,
+    "below_margin_floor": false,
+    "emerging_review_issue": null,
+    "negative_review_cluster": false
+  },
+  {
+    "product_id": "P006",
+    "name": "LED Desk Lamp",
+    "poor_listing": false,
+    "below_margin_floor": false,
+    "emerging_review_issue": "flickering",
+    "negative_review_cluster": false
+  },
+  {
+    "product_id": "P007",
+    "name": "Vitamin C Face Serum",
+    "poor_listing": false,
+    "below_margin_floor": true,
+    "emerging_review_issue": null,
+    "negative_review_cluster": false
+  },
+  {
+    "product_id": "P008",
+    "name": "Bluetooth Earbuds Case",
+    "poor_listing": false,
+    "below_margin_floor": false,
+    "emerging_review_issue": null,
+    "negative_review_cluster": true
+  },
+  {
+    "product_id": "P009",
+    "name": "Ceramic Plant Pots (3-pack)",
+    "poor_listing": true,
+    "below_margin_floor": false,
+    "emerging_review_issue": null,
+    "negative_review_cluster": false
+  },
+  {
+    "product_id": "P010",
+    "name": "Resistance Bands Set",
+    "poor_listing": false,
+    "below_margin_floor": false,
+    "emerging_review_issue": null,
+    "negative_review_cluster": false
+  },
+  {
+    "product_id": "P011",
+    "name": "Stainless Steel Water Bottle",
+    "poor_listing": false,
+    "below_margin_floor": false,
+    "emerging_review_issue": null,
+    "negative_review_cluster": false
+  },
+  {
+    "product_id": "P012",
+    "name": "Collagen Face Moisturizer",
+    "poor_listing": true,
+    "below_margin_floor": false,
+    "emerging_review_issue": null,
+    "negative_review_cluster": false
+  },
+  {
+    "product_id": "P013",
+    "name": "Adjustable Yoga Mat",
+    "poor_listing": false,
+    "below_margin_floor": true,
+    "emerging_review_issue": null,
+    "negative_review_cluster": false
+  },
+  {
+    "product_id": "P014",
+    "name": "Solar Garden Lights (6-pack)",
+    "poor_listing": false,
+    "below_margin_floor": false,
+    "emerging_review_issue": null,
+    "negative_review_cluster": false
+  }
+]

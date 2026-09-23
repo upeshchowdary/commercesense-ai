@@ -14,7 +14,21 @@ from api import deps  # noqa: F401  (sys.path side effect — must run first)
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routers import agents, decisions, evaluation, intelligence, products, research, signals
+from api.routers import (
+    agents,
+    data_import,
+    decisions,
+    evaluation,
+    intelligence,
+    inventory_intelligence,
+    listing_intelligence,
+    opportunity,
+    pricing_intelligence,
+    products,
+    research,
+    review_intelligence,
+    signals,
+)
 
 app = FastAPI(title="Amazon Seller Copilot API", version="0.1.0")
 
@@ -36,6 +50,12 @@ app.include_router(intelligence.router, prefix="/api")
 app.include_router(decisions.router, prefix="/api")
 app.include_router(evaluation.router, prefix="/api")
 app.include_router(agents.router, prefix="/api")
+app.include_router(inventory_intelligence.router, prefix="/api")
+app.include_router(listing_intelligence.router, prefix="/api")
+app.include_router(pricing_intelligence.router, prefix="/api")
+app.include_router(review_intelligence.router, prefix="/api")
+app.include_router(opportunity.router, prefix="/api")
+app.include_router(data_import.router, prefix="/api")
 
 
 @app.get("/api/health")
