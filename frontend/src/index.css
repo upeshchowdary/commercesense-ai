@@ -1,0 +1,162 @@
+@import 'tailwindcss';
+
+/*
+  Design tokens — this project's own established internal palette,
+  carried forward from the Streamlit UI it replaces (ui/theme.py),
+  not any third party's brand. Dark-first; there is no light mode.
+*/
+:root {
+  --bg: #0b0e14;
+  --panel: #131722;
+  --panel-elevated: #171c28;
+  --panel-border: #232838;
+  --text: #e8eaf0;
+  --text-muted: #8b93a7;
+  --text-faint: #5b6478;
+
+  --amber: #e8a33d;
+  --amber-soft: rgba(232, 163, 61, 0.14);
+  --blue: #4fc3f7;
+  --blue-deep: #2e86ff;
+  --blue-soft: rgba(79, 195, 247, 0.14);
+  --green: #3ecf8e;
+  --green-soft: rgba(62, 207, 142, 0.14);
+  --red: #ff6b6b;
+  --red-soft: rgba(255, 107, 107, 0.14);
+  --yellow: #f0c674;
+  --yellow-soft: rgba(240, 198, 116, 0.14);
+
+  --radius: 0.875rem;
+}
+
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+
+  --color-card: var(--panel);
+  --color-card-foreground: var(--text);
+
+  --color-popover: var(--panel-elevated);
+  --color-popover-foreground: var(--text);
+
+  --color-primary: var(--amber);
+  --color-primary-foreground: #14110a;
+
+  --color-secondary: var(--panel-elevated);
+  --color-secondary-foreground: var(--text);
+
+  --color-muted: var(--panel-elevated);
+  --color-muted-foreground: var(--text-muted);
+
+  --color-accent: var(--blue);
+  --color-accent-foreground: #071824;
+
+  --color-destructive: var(--red);
+  --color-destructive-foreground: #200a0a;
+
+  --color-border: var(--panel-border);
+  --color-input: var(--panel-border);
+  --color-ring: var(--blue);
+
+  --color-live: var(--blue);
+  --color-live-soft: var(--blue-soft);
+  --color-cached: var(--text-muted);
+  --color-cached-soft: rgba(139, 147, 167, 0.14);
+  --color-synthetic: var(--text-faint);
+  --color-synthetic-soft: rgba(91, 100, 120, 0.18);
+  --color-demo: var(--amber);
+  --color-demo-soft: var(--amber-soft);
+
+  --color-success: var(--green);
+  --color-warning: var(--amber);
+  --color-danger: var(--red);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --font-sans:
+    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono:
+    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+* {
+  border-color: var(--panel-border);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  min-height: 100svh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+::selection {
+  background: var(--blue-soft);
+  color: var(--text);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--panel-border);
+  border-radius: 999px;
+  border: 2px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
+}
+
+.text-gradient-blue {
+  background: linear-gradient(90deg, var(--blue), var(--blue-deep));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out both;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.45s ease-out both;
+}
