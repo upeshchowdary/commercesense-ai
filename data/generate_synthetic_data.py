@@ -179,6 +179,10 @@ def generate() -> None:
     print(f"Ground-truth labels written to {EVAL_LABELS_PATH}")
     print(f"Planted issue breakdown: {planted_counts}")
 
+    from generate_intelligence_data import generate_intelligence_data
+
+    generate_intelligence_data(PRODUCT_PLAN)
+
 
 if __name__ == "__main__":
     generate()

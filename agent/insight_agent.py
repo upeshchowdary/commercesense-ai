@@ -55,7 +55,7 @@ from google.genai import types
 from schema import Insight, InsightReport, ResearchBundle
 from decision_log import log_decision
 
-MODEL = os.environ.get("INSIGHT_AGENT_MODEL", "gemini-2.5-flash")
+MODEL = os.environ.get("INSIGHT_AGENT_MODEL", "gemini-3.6-flash")
 CATEGORIES = ("pricing", "trend", "risk", "opportunity")
 
 SYSTEM_PROMPT = """You are an insight-extraction agent. You are given a \

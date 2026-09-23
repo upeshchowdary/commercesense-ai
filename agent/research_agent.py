@@ -69,7 +69,7 @@ except ImportError:
     _tavily = None
 
 
-MODEL = os.environ.get("RESEARCH_AGENT_MODEL", "gemini-2.5-flash")
+MODEL = os.environ.get("RESEARCH_AGENT_MODEL", "gemini-3.6-flash")
 MAX_SEARCHES = 4
 CACHE_TTL_HOURS = 6
 
