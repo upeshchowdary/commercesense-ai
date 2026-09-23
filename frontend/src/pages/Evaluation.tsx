@@ -92,6 +92,33 @@ export default function Evaluation() {
             </Card>
           </>
         )}
+
+        {data?.intelligence_modules?.data_available && (
+          <>
+            <h2 className="mt-2 text-lg font-semibold text-foreground">Intelligence Modules</h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {(['listing', 'pricing', 'review'] as const).map((module) => {
+                const summary = data.intelligence_modules.summary![module]
+                return (
+                  <Card key={module} className="flex flex-col gap-2 p-4">
+                    <p className="text-sm font-semibold capitalize text-foreground">{module}</p>
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                      <div><p className="text-muted-foreground">Precision</p><p className="font-semibold text-foreground">{summary.precision ?? 'N/A'}</p></div>
+                      <div><p className="text-muted-foreground">Recall</p><p className="font-semibold text-foreground">{summary.recall ?? 'N/A'}</p></div>
+                      <div><p className="text-muted-foreground">F1</p><p className="font-semibold text-foreground">{summary.f1 ?? 'N/A'}</p></div>
+                    </div>
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>TP: {summary.tp}</span>
+                      <span>FP: {summary.fp}</span>
+                      <span>TN: {summary.tn}</span>
+                      <span>FN: {summary.fn}</span>
+                    </div>
+                  </Card>
+                )
+              })}
+            </div>
+          </>
+        )}
       </div>
     </AppShell>
   )

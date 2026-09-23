@@ -76,12 +76,18 @@ export default function ProductDetail() {
               {product.category} · {formatCurrency(product.base_price)}
             </p>
           </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-3">
             {product.signals.length > 0 ? (
               <SeverityBadge severity={product.signals[0].severity} />
             ) : (
               <SeverityBadge severity={null} />
             )}
+            <Button size="sm" asChild>
+              <Link to={`/products/${product.product_id}/intelligence`}>
+                <Sparkles className="size-3.5" />
+                Full Intelligence
+              </Link>
+            </Button>
           </div>
         </div>
 

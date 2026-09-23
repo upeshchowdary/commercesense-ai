@@ -6,6 +6,7 @@ import Evaluation from './pages/Evaluation'
 import Landing from './pages/Landing'
 import Overview from './pages/Overview'
 import ProductDetail from './pages/ProductDetail'
+import ProductIntelligence from './pages/ProductIntelligence'
 import Products from './pages/Products'
 import Research from './pages/Research'
 import Settings from './pages/Settings'
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="/overview" element={<Overview />} />
         <Route path="/products" element={<Products />} />
         <Route path="/products/:productId" element={<ProductDetail />} />
+        <Route path="/products/:productId/intelligence" element={<ProductIntelligence />} />
         <Route path="/signals" element={<Signals />} />
         <Route path="/signals/:signalId" element={<SignalDetail />} />
         <Route path="/research" element={<Research />} />

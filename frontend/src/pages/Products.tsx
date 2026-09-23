@@ -1,12 +1,13 @@
-import { Boxes, Search } from 'lucide-react'
+import { Boxes, Search, Sparkles } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { SeverityBadge } from '@/components/shared/SeverityBadge'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { ListSkeleton } from '@/components/shared/Skeletons'
+import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -14,6 +15,7 @@ import { formatCurrency } from '@/lib/utils'
 import { useProducts } from '@/hooks/useProducts'
 
 export default function Products() {
+  const navigate = useNavigate()
   const { data, isLoading, isError, refetch } = useProducts()
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('all')
@@ -113,6 +115,19 @@ export default function Products() {
                       <SeverityBadge severity={p.highest_severity} />
                     </div>
                   </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-1 w-full"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      navigate(`/products/${p.product_id}/intelligence`)
+                    }}
+                  >
+                    <Sparkles className="size-3.5" />
+                    Full Intelligence
+                  </Button>
                 </Card>
               </Link>
             ))}

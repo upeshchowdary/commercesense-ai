@@ -6,10 +6,19 @@ import type {
   DetectedSignal,
   EvaluationResult,
   HealthStatus,
+  IntelligenceApproveRequest,
   IntelligenceResult,
+  InventoryForecastRow,
+  InventoryIntelligenceResult,
+  InventoryWhatIfResult,
+  ListingIntelligenceResult,
+  ListingRewriteResult,
+  PricingIntelligenceResult,
   ProductDetail,
+  ProductIntelligenceOverview,
   ProductSummary,
   ResearchResult,
+  ReviewIntelligenceResult,
   SignalRunResult,
 } from './types'
 
@@ -78,3 +87,55 @@ export const postDecision = (body: DecisionRequest) =>
 export const getEvaluation = () => request<EvaluationResult>('/evaluation')
 
 export const getAgents = () => request<AgentStatus[]>('/agents')
+
+// ---------------------------------------------------- Intelligence modules
+
+export const getListingIntelligence = (productId: string) =>
+  request<ListingIntelligenceResult>(`/listing-intelligence/${encodeURIComponent(productId)}`)
+export const postListingAnalyze = (productId: string) =>
+  request<ListingIntelligenceResult>(`/listing-intelligence/${encodeURIComponent(productId)}/analyze`, { method: 'POST' })
+export const postListingRewrite = (productId: string, useAi = true) =>
+  request<ListingRewriteResult>(`/listing-intelligence/${encodeURIComponent(productId)}/rewrite`, {
+    method: 'POST', body: JSON.stringify({ use_ai: useAi }),
+  })
+export const postListingApprove = (productId: string, body: IntelligenceApproveRequest) =>
+  request<DecisionResponse>(`/listing-intelligence/${encodeURIComponent(productId)}/approve`, { method: 'POST', body: JSON.stringify(body) })
+
+export const getPricingIntelligence = (productId: string) =>
+  request<PricingIntelligenceResult>(`/pricing-intelligence/${encodeURIComponent(productId)}`)
+export const postPricingAnalyze = (productId: string, useLiveResearch = false) =>
+  request<PricingIntelligenceResult>(`/pricing-intelligence/${encodeURIComponent(productId)}/analyze`, {
+    method: 'POST', body: JSON.stringify({ use_live_research: useLiveResearch }),
+  })
+export const postPricingSimulate = (productId: string, newPrice: number, adSpendLevels?: number[]) =>
+  request<Record<string, unknown>>(`/pricing-intelligence/${encodeURIComponent(productId)}/simulate`, {
+    method: 'POST', body: JSON.stringify({ new_price: newPrice, ad_spend_levels: adSpendLevels }),
+  })
+export const postPricingApprove = (productId: string, body: IntelligenceApproveRequest) =>
+  request<DecisionResponse>(`/pricing-intelligence/${encodeURIComponent(productId)}/approve`, { method: 'POST', body: JSON.stringify(body) })
+
+export const getReviewIntelligence = (productId: string) =>
+  request<ReviewIntelligenceResult>(`/review-intelligence/${encodeURIComponent(productId)}`)
+export const postReviewAnalyze = (productId: string) =>
+  request<ReviewIntelligenceResult>(`/review-intelligence/${encodeURIComponent(productId)}/analyze`, { method: 'POST' })
+export const postReviewApprove = (productId: string, body: IntelligenceApproveRequest) =>
+  request<DecisionResponse>(`/review-intelligence/${encodeURIComponent(productId)}/approve`, { method: 'POST', body: JSON.stringify(body) })
+
+export const getInventoryIntelligence = (productId: string) =>
+  request<InventoryIntelligenceResult>(`/inventory-intelligence/${encodeURIComponent(productId)}`)
+export const postInventoryAnalyze = (productId: string) =>
+  request<InventoryIntelligenceResult>(`/inventory-intelligence/${encodeURIComponent(productId)}/analyze`, { method: 'POST' })
+export const postInventoryForecast = (productId: string, daysAhead = 30) =>
+  request<{ provenance: string; product_id: string; rows: InventoryForecastRow[] }>(
+    `/inventory-intelligence/${encodeURIComponent(productId)}/forecast`,
+    { method: 'POST', body: JSON.stringify({ days_ahead: daysAhead, inbound: [] }) },
+  )
+export const postInventorySimulate = (productId: string, reorderQuantity: number, leadTimeDays?: number) =>
+  request<InventoryWhatIfResult>(`/inventory-intelligence/${encodeURIComponent(productId)}/simulate`, {
+    method: 'POST', body: JSON.stringify({ reorder_quantity: reorderQuantity, lead_time_days: leadTimeDays }),
+  })
+export const postInventoryApprove = (productId: string, body: IntelligenceApproveRequest) =>
+  request<DecisionResponse>(`/inventory-intelligence/${encodeURIComponent(productId)}/approve`, { method: 'POST', body: JSON.stringify(body) })
+
+export const getProductIntelligenceOverview = (productId: string) =>
+  request<ProductIntelligenceOverview>(`/products/${encodeURIComponent(productId)}/intelligence`)
