@@ -201,6 +201,12 @@ export interface AgentStatus {
   run_stats?: IntelligenceRunStats
 }
 
+export interface ActivityStats {
+  total: number
+  by_agent: Record<string, number>
+  by_action: Record<string, number>
+}
+
 export interface SignalRunResult {
   inventory_stockout_flagged: number
   ppc_waste_flagged: number

@@ -1,4 +1,6 @@
-import type { ActivityEvent } from './types'
+import { SIGNAL_TYPE_LABEL } from './signalCopy'
+import type { ActivityEvent, SignalType } from './types'
+import { titleCase } from './utils'
 
 // A human decision is just another decision_log entry (agent: "human"),
 // filtered by product + category — there's no separate "status" field
@@ -32,4 +34,23 @@ export function decisionTone(action: string): 'success' | 'danger' | 'warning' |
   if (action === 'decision_rejected') return 'danger'
   if (action === 'decision_more_research_requested') return 'warning'
   return 'secondary'
+}
+
+// What a decision was actually about. A decision_log entry's `detail`
+// shape differs by source: signal decisions log {category: SignalType},
+// module decisions log {module, field}. Rendering either raw (or not at
+// all) left "Approved" with a blank subject, or a raw snake_case value
+// like "inventory_stockout", on Decision History / Decision Center.
+export function decisionSubject(detail: Record<string, unknown> | null | undefined): string {
+  if (!detail) return ''
+  const category = detail.category as string | undefined
+  if (category && category in SIGNAL_TYPE_LABEL) {
+    return SIGNAL_TYPE_LABEL[category as SignalType]
+  }
+  const module = detail.module as string | undefined
+  if (module) {
+    const field = detail.field as string | undefined
+    return field ? `${titleCase(module)} · ${titleCase(field)}` : titleCase(module)
+  }
+  return ''
 }

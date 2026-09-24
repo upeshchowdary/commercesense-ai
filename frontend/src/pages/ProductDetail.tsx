@@ -23,7 +23,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { InventoryTab, ListingTab, PricingTab, ReviewsTab } from '@/components/intelligence/ModuleTabs'
-import { decisionLabel, decisionTone } from '@/lib/decisions'
+import { decisionLabel, decisionSubject, decisionTone } from '@/lib/decisions'
 import { SIGNAL_TYPE_LABEL } from '@/lib/signalCopy'
 import { formatCurrency, formatDateTime, formatRelativeTime, formatSecondsAge, titleCase } from '@/lib/utils'
 import { useProduct } from '@/hooks/useProducts'
@@ -354,9 +354,7 @@ export default function ProductDetail() {
                 <Card key={i} className="flex items-center justify-between gap-3 p-4">
                   <div className="flex items-center gap-3">
                     <Badge variant={decisionTone(d.action)}>{decisionLabel(d.action)}</Badge>
-                    <span className="text-sm text-foreground">
-                      {(d.detail as { category?: string })?.category ?? ''}
-                    </span>
+                    <span className="text-sm text-foreground">{decisionSubject(d.detail)}</span>
                     {(d.detail as { reason?: string })?.reason && (
                       <span className="text-sm text-muted-foreground">
                         — {(d.detail as { reason?: string }).reason}

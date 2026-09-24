@@ -16,6 +16,13 @@ export function formatPercent(value: number, digits = 0): string {
   return `${(value * 100).toFixed(digits)}%`
 }
 
+// A missing breakeven/target price or competitor median is a real "we
+// don't know" state, not zero -- formatCurrency(x ?? 0) rendered it as
+// a misleading "$0.00".
+export function formatCurrencyOrNA(value: number | null | undefined): string {
+  return value === null || value === undefined ? 'N/A' : formatCurrency(value)
+}
+
 export function formatDate(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso

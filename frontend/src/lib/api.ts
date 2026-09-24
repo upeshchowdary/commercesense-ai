@@ -1,5 +1,6 @@
 import type {
   ActivityEvent,
+  ActivityStats,
   AgentStatus,
   CsvImportResult,
   CsvTemplate,
@@ -85,6 +86,8 @@ export const getActivity = (filters?: {
   action?: string
   limit?: number
 }) => request<ActivityEvent[]>(`/activity${qs(filters ?? {})}`)
+
+export const getActivityStats = () => request<ActivityStats>('/activity/stats')
 
 export const postDecision = (body: DecisionRequest) =>
   request<DecisionResponse>('/decisions', { method: 'POST', body: JSON.stringify(body) })

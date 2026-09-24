@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { getActivity } from '@/lib/api'
+import { getActivity, getActivityStats } from '@/lib/api'
 
 export function useActivity(filters?: {
   product_name?: string
@@ -10,5 +10,12 @@ export function useActivity(filters?: {
   return useQuery({
     queryKey: ['activity', filters],
     queryFn: () => getActivity(filters),
+  })
+}
+
+export function useActivityStats() {
+  return useQuery({
+    queryKey: ['activity', 'stats'],
+    queryFn: getActivityStats,
   })
 }

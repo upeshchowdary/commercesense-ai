@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { formatCurrency, formatPercent, titleCase } from '@/lib/utils'
+import { formatCurrency, formatCurrencyOrNA, formatPercent, titleCase } from '@/lib/utils'
 import type { IntelligenceApproveRequest } from '@/lib/types'
 import {
   useInventoryAnalyze,
@@ -106,7 +106,7 @@ export function ListingTab({ productId }: { productId: string }) {
               </div>
             ))}
           </div>
-          {data.failed_rules.length > 0 && (
+          {(data.failed_rules.length > 0 || data.warnings.length > 0) && (
             <div className="flex flex-wrap gap-1.5">
               {data.failed_rules.map((r) => <Badge key={r} variant="danger">{titleCase(r)}</Badge>)}
               {data.warnings.map((r) => <Badge key={r} variant="warning">{titleCase(r)}</Badge>)}
@@ -118,9 +118,12 @@ export function ListingTab({ productId }: { productId: string }) {
                 <>
                   <p className="text-foreground">{String(analyze.data.ai_diagnosis.data?.diagnosis ?? '')}</p>
                   <ul className="mt-2 list-inside list-disc text-muted-foreground">
-                    {['top_issue_1', 'top_issue_2', 'top_issue_3'].map((k) => (
-                      <li key={k}>{String(analyze.data!.ai_diagnosis!.data?.[k] ?? '')}</li>
-                    ))}
+                    {['top_issue_1', 'top_issue_2', 'top_issue_3']
+                      .map((k) => String(analyze.data!.ai_diagnosis!.data?.[k] ?? '').trim())
+                      .filter(Boolean)
+                      .map((issue) => (
+                        <li key={issue}>{issue}</li>
+                      ))}
                   </ul>
                 </>
               ) : (
@@ -255,7 +258,7 @@ export function PricingTab({ productId }: { productId: string }) {
               </div>
               {data.observations.length > 1 && (
                 <p className="mt-1.5 text-xs text-muted-foreground">
-                  {data.observations.length} observed prices, median {formatCurrency(data.price_distribution.median ?? 0)} —
+                  {data.observations.length} observed prices, median {formatCurrencyOrNA(data.price_distribution.median)} —
                   shown as a range, not a single silently-chosen number.
                 </p>
               )}
@@ -264,8 +267,8 @@ export function PricingTab({ productId }: { productId: string }) {
           <WhyPanel
             what={`Price state is ${data.price_state.replace(/_/g, ' ').toLowerCase()} at a current price of ${formatCurrency(data.current_price)}.`}
             why="Margin, competitor position, and inventory health together determine whether this price is sustainable — not competitor price alone."
-            evidence={data.observations.length > 0 ? `${data.observations.length} competitor observation(s), median ${formatCurrency(data.price_distribution.median ?? 0)}.` : 'No competitor observations on file yet.'}
-            calculation={`Contribution ${formatCurrency(data.contribution.contribution)} = price − variable cost. Breakeven ${formatCurrency(data.breakeven_price ?? 0)}. Target-margin price ${formatCurrency(data.target_margin_price ?? 0)}.`}
+            evidence={data.observations.length > 0 ? `${data.observations.length} competitor observation(s), median ${formatCurrencyOrNA(data.price_distribution.median)}.` : 'No competitor observations on file yet.'}
+            calculation={`Contribution ${formatCurrency(data.contribution.contribution)} = price − variable cost. Breakeven ${formatCurrencyOrNA(data.breakeven_price)}. Target-margin price ${formatCurrencyOrNA(data.target_margin_price)}.`}
             ifNothing={data.price_state === 'BELOW_MARGIN_FLOOR' ? 'Every unit sold continues to erode margin below the target floor.' : 'Price stays as-is; no immediate financial exposure detected from this data.'}
             proposedAction={data.recommendation.low !== null ? `Consider a price in ${formatCurrency(data.recommendation.low)}–${formatCurrency(data.recommendation.high!)}.` : 'Gather more cost/competitor data before recommending a change.'}
           />
@@ -362,7 +365,14 @@ export function ReviewsTab({ productId }: { productId: string }) {
         <CardContent className="flex flex-col gap-3">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Stat label="Negative %" value={`${data.rating_stats.negative_pct ?? 0}%`} />
-            <Stat label="30d Velocity" value={data.velocity.trend} />
+            <Stat
+              label="30d Velocity"
+              value={
+                data.velocity.pct_change !== null
+                  ? `${titleCase(data.velocity.trend)} (${data.velocity.pct_change >= 0 ? '+' : ''}${data.velocity.pct_change.toFixed(1)}%)`
+                  : titleCase(data.velocity.trend)
+              }
+            />
             <Stat label="Current / Prev" value={`${data.velocity.current_count} / ${data.velocity.previous_count}`} />
             <Stat label="Total Available" value={String(data.total_reviews_available)} />
           </div>
@@ -471,13 +481,17 @@ export function InventoryTab({ productId }: { productId: string }) {
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <Stat label="Current Inventory" value={String(data.current_inventory)} />
+            <Stat label="Current Inventory" value={`${Math.ceil(data.current_inventory)} units`} />
             <Stat label="Days of Cover" value={data.days_of_cover !== null ? String(data.days_of_cover) : 'N/A'} />
-            <Stat label="Reorder Point" value={String(data.reorder_point)} />
-            <Stat label="Suggested Reorder" value={String(data.suggested_reorder_quantity)} />
+            <Stat label="Reorder Point" value={`${Math.ceil(data.reorder_point)} units`} />
+            <Stat label="Suggested Reorder" value={`${Math.ceil(data.suggested_reorder_quantity)} units`} />
           </div>
-          {data.projected_stockout_date && (
-            <p className="text-sm text-danger">Projected stockout date: {data.projected_stockout_date}</p>
+          {data.current_inventory <= 0 ? (
+            <p className="rounded-md bg-danger/10 px-3 py-2 text-sm font-semibold text-danger">Out of stock now</p>
+          ) : (
+            data.projected_stockout_date && (
+              <p className="text-sm text-danger">Projected stockout date: {data.projected_stockout_date}</p>
+            )
           )}
           {analyze.data?.ai_explanation && (
             <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
@@ -495,8 +509,14 @@ export function InventoryTab({ productId }: { productId: string }) {
             what={`Category ${data.category.replace(/_/g, ' ').toLowerCase()}, ${data.days_of_cover ?? 'N/A'} days of cover remaining.`}
             why="Days of cover below lead time means a stockout is likely before a reorder can arrive — lost sales and rank damage follow."
             evidence={`Weighted average daily demand: ${data.demand.weighted_avg}. Current inventory: ${data.current_inventory}.`}
-            calculation={`Reorder point ${data.reorder_point} = lead-time demand + safety stock (${data.safety_stock}). Suggested reorder ${data.suggested_reorder_quantity} = target stock − projected available.`}
-            ifNothing={data.projected_stockout_date ? `Projected stockout around ${data.projected_stockout_date} if nothing changes.` : 'No stockout currently projected from this data.'}
+            calculation={`Reorder point ${Math.ceil(data.reorder_point)} units = lead-time demand + safety stock (${Math.ceil(data.safety_stock)} units). Suggested reorder ${Math.ceil(data.suggested_reorder_quantity)} units = target stock − projected available.`}
+            ifNothing={
+              data.current_inventory <= 0
+                ? 'Already out of stock — every day without a reorder is lost sales.'
+                : data.projected_stockout_date
+                  ? `Projected stockout around ${data.projected_stockout_date} if nothing changes.`
+                  : 'No stockout currently projected from this data.'
+            }
             proposedAction={`Consider reordering ${data.suggested_reorder_quantity} units.`}
           />
           <AlternativesPanel

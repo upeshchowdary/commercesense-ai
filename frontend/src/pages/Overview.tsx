@@ -19,7 +19,7 @@ import { KpiCard } from '@/components/shared/KpiCard'
 import { CardSkeleton, KpiSkeleton } from '@/components/shared/Skeletons'
 import { findDecision } from '@/lib/decisions'
 import { formatRelativeTime, titleCase } from '@/lib/utils'
-import { useActivity } from '@/hooks/useActivity'
+import { useActivity, useActivityStats } from '@/hooks/useActivity'
 import { useEvaluation } from '@/hooks/useEvaluation'
 import { useProducts } from '@/hooks/useProducts'
 import { useSignals } from '@/hooks/useSignals'
@@ -28,9 +28,15 @@ export default function Overview() {
   const products = useProducts()
   const signals = useSignals()
   const activity = useActivity({ limit: 100 })
+  // Full-log queries for KPIs/charts that must not undercount once a bulk
+  // action (e.g. running signal detection, ~84 events) pushes older rows
+  // out of the capped `activity` list above.
+  const stats = useActivityStats()
+  const humanDecisions = useActivity({ agent: 'human', limit: 1000 })
   const evaluation = useEvaluation()
 
-  const loading = products.isLoading || signals.isLoading || activity.isLoading
+  const loading =
+    products.isLoading || signals.isLoading || activity.isLoading || stats.isLoading || humanDecisions.isLoading
   const anyError = products.isError || signals.isError || activity.isError
 
   if (anyError) {
@@ -51,15 +57,22 @@ export default function Overview() {
   const productList = products.data ?? []
   const signalList = signals.data ?? []
   const activityList = activity.data ?? []
-
+  const byAction = stats.data?.by_action ?? {}
+  const byAgent = stats.data?.by_agent ?? {}
   const highSeverity = signalList.filter((s) => s.severity === 'high')
-  const researchRuns = activityList.filter((e) => e.agent === 'research_agent')
+  // Only genuine research runs -- excludes query-planning/fallback/error
+  // bookkeeping actions the research agent also logs under the same agent
+  // name.
+  const researchRunCount = (byAction['live_search'] ?? 0) + (byAction['cache_hit'] ?? 0)
+  const humanDecisionList = humanDecisions.data ?? []
   const pending = signalList.filter(
-    (s) => s.severity && !findDecision(activityList, s.product_name ?? '', s.signal_type),
+    (s) => s.severity && !findDecision(humanDecisionList, s.product_name ?? '', s.signal_type),
   )
-  const opportunities = (evaluation.data?.results ?? []).filter(
+  const evalResults = evaluation.data?.results ?? []
+  const plantedIssuesExpected = evalResults.filter((r) => r.expected).length
+  const plantedIssuesCaught = evalResults.filter(
     (r) => r.expected && r.detected && !r.false_positive,
-  )
+  ).length
 
   const recent = activityList.slice(0, 8)
   const topAttention = [...productList].sort((a, b) => b.attention_score - a.attention_score).slice(0, 5)
@@ -90,13 +103,13 @@ export default function Overview() {
                 tone={highSeverity.length > 0 ? 'danger' : 'default'}
               />
               <KpiCard
-                label="Opportunities Detected"
-                value={opportunities.length}
+                label="Planted Issues Caught"
+                value={`${plantedIssuesCaught}/${plantedIssuesExpected}`}
                 icon={FlaskConical}
                 tone="success"
                 hint="Synthetic eval"
               />
-              <KpiCard label="Research Runs" value={researchRuns.length} icon={Search} />
+              <KpiCard label="Research Runs" value={researchRunCount} icon={Search} />
               <KpiCard
                 label="Pending Decisions"
                 value={pending.length}
@@ -121,7 +134,7 @@ export default function Overview() {
               <CardTitle>Agent Activity</CardTitle>
             </CardHeader>
             <CardContent>
-              {loading ? <CardSkeleton /> : <AgentActivityChart activity={activityList} />}
+              {loading ? <CardSkeleton /> : <AgentActivityChart byAgent={byAgent} />}
             </CardContent>
           </Card>
         </div>
