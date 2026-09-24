@@ -80,7 +80,12 @@ def classify_price_state(margin_pct: float | None, target_margin_pct: float, cur
 
 def recommend_price_range(
     target_margin_price_value: float | None, median_competitor: float | None, price_state: str,
+    price_spread: dict | None = None,
 ) -> dict:
+    """price_spread, when given, is a price_distribution() result --
+    used only for contradiction handling (spec §20): a median built from
+    wildly disagreeing competitor observations must not be presented
+    with the same confidence as one built from agreeing observations."""
     candidates: list[float] = []
     reasoning: list[str] = []
     if target_margin_price_value is not None:
@@ -98,6 +103,18 @@ def recommend_price_range(
     if low > high:
         low, high = high, low
     confidence = "high" if len(candidates) >= 2 else "medium"
+
+    if price_spread and price_spread.get("sample_size", 0) >= 2 and price_spread.get("median"):
+        lo, hi, med = price_spread["lowest"], price_spread["highest"], price_spread["median"]
+        relative_spread = (hi - lo) / med if med else 0
+        if relative_spread > 0.15:
+            reasoning.append(
+                f"Competitor observations disagree ({price_spread['sample_size']} prices from "
+                f"${lo:.2f} to ${hi:.2f}) — median used, but confidence is lowered accordingly, "
+                "not silently trusted."
+            )
+            confidence = "low"
+
     if price_state == "HEALTHY_RANGE":
         reasoning.append("No evidence that an immediate price change is necessary.")
     return {"low": low, "high": high, "reasoning": reasoning, "confidence": confidence}

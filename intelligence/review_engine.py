@@ -1,11 +1,16 @@
 """
 review_engine.py — deterministic Review Intelligence: rating statistics,
-velocity, and theme extraction. Theme detection is plain keyword/phrase
-frequency against a curated vocabulary plus a simple frequency-based
-discovery pass for anything not in that vocabulary — deliberately no
-sentence-transformers/sklearn dependency; this fully satisfies "themes
-must emerge from actual review text, deterministically" without a heavy
-ML dependency for a hackathon-scale dataset.
+velocity, and theme extraction. The core theme detection (theme_frequency,
+discover_candidate_words) is plain keyword/phrase frequency against a
+curated vocabulary plus a simple frequency-based discovery pass for
+anything not in that vocabulary — no ML dependency, fully deterministic,
+and this alone satisfies "themes must emerge from actual review text."
+
+semantic_theme_clusters() at the bottom is the OPTIONAL local-semantic
+layer from spec section 10.4 (sentence-transformers + scikit-learn
+clustering) — an additional lens alongside the deterministic themes above,
+never a replacement. It degrades to [] (not an error) when those packages
+aren't installed or there isn't enough text to cluster.
 
 A "review" here is any dict/Row with: rating (int), review_text (str),
 review_date (ISO date string), and optionally id.
@@ -169,3 +174,65 @@ def detect_emerging_issues(
             f"previous and current {window_days}-day periods."
         ),
     }
+
+
+def semantic_theme_clusters(reviews: list[dict], top_n: int = 5, min_cluster_size: int = 3) -> list[dict]:
+    """Optional enhancement layer: clusters review text with
+    sentence-transformers embeddings + scikit-learn KMeans. Purely
+    additive alongside theme_frequency()/discover_candidate_words() above
+    -- never the only theme signal the app relies on. Returns [] whenever
+    sentence-transformers/scikit-learn aren't installed, or there isn't
+    enough review text to form real clusters, so callers can always treat
+    this as "unavailable" rather than crash or block the deterministic
+    path."""
+    if len(reviews) < min_cluster_size * 2:
+        return []
+    try:
+        from sentence_transformers import SentenceTransformer
+        from sklearn.cluster import KMeans
+    except ImportError:
+        return []
+
+    texts = [r["review_text"] for r in reviews if r.get("review_text")]
+    if len(texts) < min_cluster_size * 2:
+        return []
+
+    model = SentenceTransformer("all-MiniLM-L6-v2")
+    embeddings = model.encode(texts, show_progress_bar=False)
+
+    n_clusters = min(top_n, len(texts) // min_cluster_size)
+    if n_clusters < 2:
+        return []
+
+    labels = KMeans(n_clusters=n_clusters, n_init=10, random_state=42).fit_predict(embeddings)
+
+    clusters: dict[int, list[int]] = {}
+    for idx, label in enumerate(labels):
+        clusters.setdefault(int(label), []).append(idx)
+
+    results = []
+    for label, idxs in clusters.items():
+        if len(idxs) < min_cluster_size:
+            continue
+        member_reviews = [reviews[i] for i in idxs]
+        avg_rating = round(sum(r["rating"] for r in member_reviews) / len(member_reviews), 2)
+        # Label the cluster with its most frequent non-stopword content
+        # words -- still grounded in the actual member text, never invented.
+        word_counts: dict[str, int] = {}
+        for r in member_reviews:
+            for word in r["review_text"].lower().replace(".", " ").replace(",", " ").split():
+                word = word.strip("'\"")
+                if len(word) >= 5 and word not in _STOPWORDS:
+                    word_counts[word] = word_counts.get(word, 0) + 1
+        top_words = sorted(word_counts.items(), key=lambda kv: kv[1], reverse=True)[:3]
+        results.append({
+            "cluster_label": ", ".join(w for w, _ in top_words) or f"cluster_{label}",
+            "size": len(idxs),
+            "avg_rating": avg_rating,
+            "sample_reviews": [
+                {"id": r.get("id"), "rating": r["rating"], "review_text": r["review_text"]}
+                for r in sorted(member_reviews, key=lambda r: r["review_date"], reverse=True)[:3]
+            ],
+        })
+    results.sort(key=lambda c: c["size"], reverse=True)
+    return results[:top_n]

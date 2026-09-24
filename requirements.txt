@@ -4,3 +4,9 @@ tavily-python>=0.5.0
 python-dotenv>=1.0.0
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
+
+# Optional -- Review Intelligence's semantic theme clustering (spec 10.4).
+# review_engine.semantic_theme_clusters() degrades to [] gracefully if
+# these aren't installed; nothing else in the app depends on them.
+sentence-transformers>=3.0.0
+scikit-learn>=1.4.0

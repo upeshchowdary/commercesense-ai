@@ -51,7 +51,7 @@ def _analyze(product_id: str) -> dict:
     dist = price_distribution(obs_prices, current_price)
 
     state = classify_price_state(cm["margin_pct"], pricing["target_margin_pct"], current_price, dist["median"])
-    recommendation = recommend_price_range(tmp, dist["median"], state)
+    recommendation = recommend_price_range(tmp, dist["median"], state, price_spread=dist)
 
     return {
         "product_id": product_id,
@@ -122,12 +122,14 @@ def analyze_pricing(product_id: str, body: PricingAnalyzeRequest) -> dict:
 
 @router.post("/pricing-intelligence/{product_id}/simulate")
 def simulate(product_id: str, body: PricingSimulateRequest) -> dict:
-    get_product_or_404(product_id)
+    product = get_product_or_404(product_id)
     pricing = idb.get_pricing_data(product_id)
     if pricing is None:
         raise HTTPException(status_code=422, detail="No pricing cost data available for this product.")
     result = simulate_price(body.new_price, pricing["cogs"], pricing["referral_fee_pct"], pricing["fulfillment_fee"],
                              pricing["other_cost"], body.ad_spend_levels)
+    log_decision(agent="pricing_intelligence", product_name=product["name"], action="simulation_executed",
+                 detail={"new_price": body.new_price, "margin_pct": result.get("margin_pct")})
     return {"provenance": "SYNTHETIC", "simulation": True, "product_id": product_id, **result}
 
 

@@ -18,6 +18,7 @@ from review_engine import (
     discover_candidate_words,
     rating_stats,
     review_velocity,
+    semantic_theme_clusters,
     theme_frequency,
     themes_for_category,
 )
@@ -52,12 +53,19 @@ def _analyze(product_id: str, window_days: int = 30) -> dict:
         if result:
             emerging.append(result)
 
+    # Optional local-semantic lens (spec 10.4) alongside the deterministic
+    # keyword/phrase themes above -- [] when sentence-transformers/
+    # scikit-learn aren't installed, never a hard failure.
+    semantic_clusters = semantic_theme_clusters(reviews)
+
     return {
         "product_id": product_id,
         "category": category,
         "rating_stats": stats,
         "velocity": velocity,
         "themes": themes[:8],
+        "semantic_themes": semantic_clusters,
+        "semantic_themes_available": len(semantic_clusters) > 0,
         "emerging_issues": emerging,
         "total_reviews_available": len(reviews),
     }

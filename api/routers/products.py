@@ -11,6 +11,11 @@ from decision_log import read_decisions
 
 router = APIRouter(tags=["products"])
 
+# Deferred import: opportunity.py imports intelligence_db/engine modules
+# that add sys.path entries at import time (api/deps.py side effect,
+# already triggered above), so this is safe at module load.
+from api.routers.opportunity import intelligence_summary  # noqa: E402
+
 _LABELED_SET_PATH = deps.PROJECT_ROOT / "eval" / "labeled_set.json"
 
 
@@ -38,17 +43,26 @@ def list_products() -> list[dict]:
         prod_signals = signals_by_product.get(pid, [])
         severities = {s["severity"] for s in prod_signals}
         highest = "high" if "high" in severities else ("medium" if "medium" in severities else None)
-        result.append(
-            {
-                "product_id": pid,
-                "name": p["name"],
-                "category": p["category"],
-                "base_price": p["base_price"],
-                "signal_count": len(prod_signals),
-                "highest_severity": highest,
-                "planted_issue": planted.get(pid),
-            }
-        )
+        row = {
+            "product_id": pid,
+            "name": p["name"],
+            "category": p["category"],
+            "base_price": p["base_price"],
+            "signal_count": len(prod_signals),
+            "highest_severity": highest,
+            "planted_issue": planted.get(pid),
+        }
+        try:
+            row.update(intelligence_summary(dict(p)))
+        except Exception:  # noqa: BLE001 — a product missing intelligence
+            # data (e.g. imported via CSV without a full module dataset)
+            # must not break the whole product list; it just shows no
+            # intelligence badges for that one row.
+            row.update({
+                "listing_score": None, "price_state": "UNKNOWN", "inventory_category": "NO_DATA",
+                "review_negative_pct": None, "review_has_emerging_issue": False, "attention_score": 0,
+            })
+        result.append(row)
     return result
 
 
