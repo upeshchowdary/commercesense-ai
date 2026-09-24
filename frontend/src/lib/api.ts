@@ -133,10 +133,14 @@ export const getInventoryIntelligence = (productId: string) =>
   request<InventoryIntelligenceResult>(`/inventory-intelligence/${encodeURIComponent(productId)}`)
 export const postInventoryAnalyze = (productId: string) =>
   request<InventoryIntelligenceResult>(`/inventory-intelligence/${encodeURIComponent(productId)}/analyze`, { method: 'POST' })
-export const postInventoryForecast = (productId: string, daysAhead = 30) =>
+export const postInventoryForecast = (
+  productId: string,
+  daysAhead = 30,
+  inbound: { day_offset: number; quantity: number }[] = [],
+) =>
   request<{ provenance: string; product_id: string; rows: InventoryForecastRow[] }>(
     `/inventory-intelligence/${encodeURIComponent(productId)}/forecast`,
-    { method: 'POST', body: JSON.stringify({ days_ahead: daysAhead, inbound: [] }) },
+    { method: 'POST', body: JSON.stringify({ days_ahead: daysAhead, inbound }) },
   )
 export const postInventorySimulate = (productId: string, reorderQuantity: number, leadTimeDays?: number) =>
   request<InventoryWhatIfResult>(`/inventory-intelligence/${encodeURIComponent(productId)}/simulate`, {

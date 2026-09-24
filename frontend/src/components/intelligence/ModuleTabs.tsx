@@ -4,11 +4,12 @@
 // both pages/ProductIntelligence.tsx (the full bundle view) and
 // pages/ProductDetail.tsx (inline tabs on the main product page).
 import { CheckCircle2, Loader2, MessageSquarePlus, RefreshCw, Sparkles, XCircle } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ConfidenceBadge } from '@/components/shared/ConfidenceBadge'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { CardSkeleton } from '@/components/shared/Skeletons'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { InventoryForecastChart } from '@/components/charts/InventoryForecastChart'
 import { WhyPanel, AlternativesPanel } from '@/components/shared/WhyPanel'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -19,6 +20,7 @@ import type { IntelligenceApproveRequest } from '@/lib/types'
 import {
   useInventoryAnalyze,
   useInventoryApprove,
+  useInventoryForecast,
   useInventoryIntelligence,
   useInventorySimulate,
   useListingAnalyze,
@@ -41,24 +43,34 @@ export function ScoreBadge({ score }: { score: number | null }) {
 }
 
 export function DecisionRow({
-  onApprove, onReject, onMoreResearch, pending,
+  onApprove, onReject, onMoreResearch, pending, isError, errorMessage, recordedAction,
 }: {
   onApprove: () => void
   onReject: () => void
   onMoreResearch: () => void
   pending: boolean
+  isError?: boolean
+  errorMessage?: string
+  /** Set after a successful decision, e.g. "Approved" -- disables repeat
+   * clicks until the underlying data refetches and this goes away. */
+  recordedAction?: string | null
 }) {
+  const disabled = pending || !!recordedAction
   return (
-    <div className="flex flex-wrap gap-2">
-      <Button size="sm" disabled={pending} onClick={onApprove}>
-        <CheckCircle2 className="size-3.5" /> Approve
-      </Button>
-      <Button size="sm" variant="destructive" disabled={pending} onClick={onReject}>
-        <XCircle className="size-3.5" /> Reject
-      </Button>
-      <Button size="sm" variant="outline" disabled={pending} onClick={onMoreResearch}>
-        <MessageSquarePlus className="size-3.5" /> Request More Research
-      </Button>
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" disabled={disabled} onClick={onApprove}>
+          <CheckCircle2 className="size-3.5" /> Approve
+        </Button>
+        <Button size="sm" variant="destructive" disabled={disabled} onClick={onReject}>
+          <XCircle className="size-3.5" /> Reject
+        </Button>
+        <Button size="sm" variant="outline" disabled={disabled} onClick={onMoreResearch}>
+          <MessageSquarePlus className="size-3.5" /> Request More Research
+        </Button>
+      </div>
+      {recordedAction && <p className="text-sm text-success">{recordedAction} · recorded</p>}
+      {isError && <p className="text-sm text-danger">{errorMessage ?? 'Could not record this decision.'}</p>}
     </div>
   )
 }
@@ -72,8 +84,39 @@ export function Stat({ label, value }: { label: string; value: string }) {
   )
 }
 
+/** Simulator inputs are free text (users paste "$16.99" or leave stray
+ * whitespace); Number("$16.99") is NaN, which used to get sent as JSON
+ * null and silently 422 with no rendered error. Strips currency
+ * formatting and requires a finite, positive result. */
+function parsePositiveNumber(raw: string): number | null {
+  const n = parseFloat(raw.replace(/[$,\s]/g, ''))
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
 function approveBody(decision: IntelligenceApproveRequest['decision'], field?: string): IntelligenceApproveRequest {
   return { decision, field, decided_by: 'Demo User' }
+}
+
+const DECISION_RECORDED_LABEL: Record<IntelligenceApproveRequest['decision'], string> = {
+  approved: 'Approved',
+  rejected: 'Rejected',
+  more_research_requested: 'More research requested',
+}
+
+/** For DecisionRow's recordedAction/isError props: a mutation's own
+ * .variables/.error, keyed to the module-specific approve() signature
+ * every *Approve hook shares ({ productId, body }). */
+function decisionRowProps(approve: {
+  isSuccess: boolean
+  isError: boolean
+  error: unknown
+  variables?: { body: IntelligenceApproveRequest }
+}) {
+  return {
+    recordedAction: approve.isSuccess ? DECISION_RECORDED_LABEL[approve.variables!.body.decision] : null,
+    isError: approve.isError,
+    errorMessage: approve.error instanceof Error ? approve.error.message : undefined,
+  }
 }
 
 // ------------------------------------------------------------------ Listing
@@ -189,8 +232,8 @@ export function ListingTab({ productId }: { productId: string }) {
             onApprove={() => approve.mutate({ productId, body: approveBody('approved', 'title') })}
             onReject={() => approve.mutate({ productId, body: approveBody('rejected', 'title') })}
             onMoreResearch={() => approve.mutate({ productId, body: approveBody('more_research_requested', 'title') })}
+            {...decisionRowProps(approve)}
           />
-          {approve.isSuccess && <p className="mt-2 text-xs text-success">Decision recorded.</p>}
         </CardContent>
       </Card>
     </div>
@@ -205,6 +248,7 @@ export function PricingTab({ productId }: { productId: string }) {
   const simulate = usePricingSimulate()
   const approve = usePricingApprove()
   const [simPrice, setSimPrice] = useState('')
+  const [simPriceError, setSimPriceError] = useState<string | null>(null)
 
   if (isError) return <ErrorState description="No pricing data available." onRetry={() => refetch()} />
   if (isLoading || !data) return <CardSkeleton lines={5} />
@@ -246,6 +290,18 @@ export function PricingTab({ productId }: { productId: string }) {
               <p className="text-sm text-muted-foreground">{data.recommendation.reasoning[0]}</p>
             )}
           </div>
+          {analyze.data?.ai_explanation && (
+            <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
+              {analyze.data.ai_explanation.available ? (
+                <div className="flex flex-col gap-1.5">
+                  <p className="text-foreground">{String(analyze.data.ai_explanation.data?.interpretation ?? '')}</p>
+                  <p className="text-muted-foreground">{String(analyze.data.ai_explanation.data?.trade_offs ?? '')}</p>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">{analyze.data.ai_explanation.message}</p>
+              )}
+            </div>
+          )}
           {data.observations.length > 0 && (
             <div>
               <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Competitor Observations</p>
@@ -286,15 +342,31 @@ export function PricingTab({ productId }: { productId: string }) {
         <CardHeader><CardTitle>Price Simulator</CardTitle></CardHeader>
         <CardContent className="flex flex-col gap-3">
           <div className="flex gap-2">
-            <Input value={simPrice} onChange={(e) => setSimPrice(e.target.value)} placeholder="New price, e.g. 19.99" className="max-w-40" />
+            <Input
+              type="number" min="0.01" step="0.01"
+              value={simPrice} onChange={(e) => setSimPrice(e.target.value)}
+              placeholder="New price, e.g. 19.99" className="max-w-40"
+            />
             <Button
               size="sm"
               disabled={simulate.isPending || !simPrice}
-              onClick={() => simulate.mutate({ productId, newPrice: Number(simPrice), adSpendLevels: [0, 1, 2] })}
+              onClick={() => {
+                const price = parsePositiveNumber(simPrice)
+                if (price === null) {
+                  setSimPriceError('Enter a price greater than 0.')
+                  return
+                }
+                setSimPriceError(null)
+                simulate.mutate({ productId, newPrice: price, adSpendLevels: [0, 1, 2] })
+              }}
             >
               Simulate
             </Button>
           </div>
+          {simPriceError && <p className="text-sm text-danger">{simPriceError}</p>}
+          {simulate.isError && (
+            <p className="text-sm text-danger">{simulate.error instanceof Error ? simulate.error.message : 'Simulation failed.'}</p>
+          )}
           {simulate.data && (
             <div className="rounded-lg border border-border p-3 text-sm">
               <StatusBadge status="SYNTHETIC" />
@@ -334,8 +406,8 @@ export function PricingTab({ productId }: { productId: string }) {
             onApprove={() => approve.mutate({ productId, body: approveBody('approved', 'price_range') })}
             onReject={() => approve.mutate({ productId, body: approveBody('rejected', 'price_range') })}
             onMoreResearch={() => approve.mutate({ productId, body: approveBody('more_research_requested', 'price_range') })}
+            {...decisionRowProps(approve)}
           />
-          {approve.isSuccess && <p className="mt-2 text-xs text-success">Decision recorded.</p>}
         </CardContent>
       </Card>
     </div>
@@ -449,8 +521,8 @@ export function ReviewsTab({ productId }: { productId: string }) {
             onApprove={() => approve.mutate({ productId, body: approveBody('approved', 'review_theme') })}
             onReject={() => approve.mutate({ productId, body: approveBody('rejected', 'review_theme') })}
             onMoreResearch={() => approve.mutate({ productId, body: approveBody('more_research_requested', 'review_theme') })}
+            {...decisionRowProps(approve)}
           />
-          {approve.isSuccess && <p className="mt-2 text-xs text-success">Decision recorded.</p>}
         </CardContent>
       </Card>
     </div>
@@ -463,8 +535,17 @@ export function InventoryTab({ productId }: { productId: string }) {
   const { data, isLoading, isError, refetch } = useInventoryIntelligence(productId)
   const analyze = useInventoryAnalyze()
   const simulate = useInventorySimulate()
+  const forecast = useInventoryForecast()
   const approve = useInventoryApprove()
   const [reorderQty, setReorderQty] = useState('')
+  const [reorderQtyError, setReorderQtyError] = useState<string | null>(null)
+
+  // Deterministic/SYNTHETIC, no LLM or external call -- safe to load on
+  // mount, same as the rest of this tab's data.
+  useEffect(() => {
+    forecast.mutate({ productId, daysAhead: 30 })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productId])
 
   if (isError) return <ErrorState description="No inventory data available." onRetry={() => refetch()} />
   if (isLoading || !data) return <CardSkeleton lines={5} />
@@ -530,18 +611,56 @@ export function InventoryTab({ productId }: { productId: string }) {
       </Card>
 
       <Card>
+        <CardHeader className="flex-row items-center justify-between">
+          <CardTitle>30-Day Inventory Forecast</CardTitle>
+          <StatusBadge status="SYNTHETIC" />
+        </CardHeader>
+        <CardContent>
+          {forecast.isPending && !forecast.data ? (
+            <CardSkeleton lines={4} />
+          ) : (
+            <InventoryForecastChart rows={forecast.data?.rows ?? []} reorderPoint={data.reorder_point} />
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader><CardTitle>Reorder Scenario</CardTitle></CardHeader>
         <CardContent className="flex flex-col gap-3">
           <div className="flex gap-2">
-            <Input value={reorderQty} onChange={(e) => setReorderQty(e.target.value)} placeholder="Reorder quantity, e.g. 500" className="max-w-48" />
+            <Input
+              type="number" min="1" step="1"
+              value={reorderQty} onChange={(e) => setReorderQty(e.target.value)}
+              placeholder="Reorder quantity, e.g. 500" className="max-w-48"
+            />
             <Button
               size="sm"
               disabled={simulate.isPending || !reorderQty}
-              onClick={() => simulate.mutate({ productId, reorderQuantity: Number(reorderQty) })}
+              onClick={() => {
+                const qty = parsePositiveNumber(reorderQty)
+                if (qty === null) {
+                  setReorderQtyError('Enter a quantity greater than 0.')
+                  return
+                }
+                setReorderQtyError(null)
+                const roundedQty = Math.round(qty)
+                simulate.mutate({ productId, reorderQuantity: roundedQty })
+                // Re-run the forecast with this reorder arriving after
+                // the configured lead time, so the chart shows its
+                // effect on the projected stockout.
+                forecast.mutate({
+                  productId, daysAhead: 30,
+                  inbound: [{ day_offset: data.config.lead_time_days, quantity: roundedQty }],
+                })
+              }}
             >
               Simulate
             </Button>
           </div>
+          {reorderQtyError && <p className="text-sm text-danger">{reorderQtyError}</p>}
+          {simulate.isError && (
+            <p className="text-sm text-danger">{simulate.error instanceof Error ? simulate.error.message : 'Simulation failed.'}</p>
+          )}
           {simulate.data && (
             <div className="rounded-lg border border-border p-3 text-sm">
               <StatusBadge status="SYNTHETIC" />
@@ -561,8 +680,8 @@ export function InventoryTab({ productId }: { productId: string }) {
             onApprove={() => approve.mutate({ productId, body: approveBody('approved', 'reorder_quantity') })}
             onReject={() => approve.mutate({ productId, body: approveBody('rejected', 'reorder_quantity') })}
             onMoreResearch={() => approve.mutate({ productId, body: approveBody('more_research_requested', 'reorder_quantity') })}
+            {...decisionRowProps(approve)}
           />
-          {approve.isSuccess && <p className="mt-2 text-xs text-success">Decision recorded.</p>}
         </CardContent>
       </Card>
     </div>
