@@ -127,8 +127,9 @@ def simulate(product_id: str, body: PricingSimulateRequest) -> dict:
     pricing = idb.get_pricing_data(product_id)
     if pricing is None:
         raise HTTPException(status_code=422, detail="No pricing cost data available for this product.")
-    result = simulate_price(body.new_price, pricing["cogs"], pricing["referral_fee_pct"], pricing["fulfillment_fee"],
-                             pricing["other_cost"], body.ad_spend_levels)
+    with RunTracker(product_id, "pricing", "SYNTHETIC"):
+        result = simulate_price(body.new_price, pricing["cogs"], pricing["referral_fee_pct"], pricing["fulfillment_fee"],
+                                 pricing["other_cost"], body.ad_spend_levels)
     log_decision(agent="pricing_intelligence", product_name=product["name"], action="simulation_executed",
                  detail={"new_price": body.new_price, "margin_pct": result.get("margin_pct")})
     return {"provenance": "SYNTHETIC", "simulation": True, "product_id": product_id, **result}
