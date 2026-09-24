@@ -108,3 +108,28 @@ def test_detect_emerging_issue_returns_none_when_stable():
 def test_themes_for_category_fallback():
     assert themes_for_category("Nonexistent Category") == ["quality", "value", "durability"]
     assert "battery life" in themes_for_category("Electronics")
+
+
+def test_theme_frequency_never_fabricates_a_theme_with_no_evidence():
+    # Spec §50: a theme that never appears in any review text must
+    # produce zero evidence, not an invented mention.
+    reviews = [_mk(5, "Great packaging and easy to assemble.", d) for d in [1, 3, 5]]
+    results = theme_frequency(reviews, ["leaking", "battery life"])
+    assert results == []
+
+
+def test_theme_frequency_evidence_is_verbatim_from_supplied_reviews():
+    reviews = [_mk(2, "Started leaking after two weeks of normal use.", 3, rid=101)]
+    results = theme_frequency(reviews, ["leaking"])
+    assert len(results) == 1
+    evidence = results[0]["evidence"]
+    assert len(evidence) == 1
+    assert evidence[0]["id"] == 101
+    assert evidence[0]["review_text"] == "Started leaking after two weeks of normal use."
+
+
+def test_detect_emerging_issue_is_none_with_insufficient_review_history():
+    # Spec §50: too little total signal to draw any trend conclusion --
+    # must return None, never a fabricated "emerging issue" claim.
+    reviews = [_mk(2, "minor leaking noticed", d) for d in [1, 2]]
+    assert detect_emerging_issues(reviews, "leaking", window_days=30) is None

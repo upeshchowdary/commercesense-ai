@@ -68,6 +68,29 @@ def test_recommend_price_range_insufficient_data():
     assert result["confidence"] == "none"
 
 
+def test_recommend_price_range_downgrades_confidence_on_contradictory_observations():
+    # Spec §20/§50: $14.99, $18.99, $15.29 disagree by >15% of the median
+    # -- more than any single-source noise should produce. The engine
+    # must not silently trust the median at "high" confidence here.
+    spread = price_distribution([14.99, 18.99, 15.29], current_price=15.00)
+    result = recommend_price_range(
+        target_margin_price_value=14.20, median_competitor=spread["median"],
+        price_state="HEALTHY_RANGE", price_spread=spread,
+    )
+    assert result["confidence"] == "low"
+    assert any("disagree" in r for r in result["reasoning"])
+
+
+def test_recommend_price_range_stays_high_confidence_when_observations_agree():
+    spread = price_distribution([14.99, 15.05, 15.10], current_price=15.00)
+    result = recommend_price_range(
+        target_margin_price_value=14.20, median_competitor=spread["median"],
+        price_state="HEALTHY_RANGE", price_spread=spread,
+    )
+    assert result["confidence"] == "high"
+    assert not any("disagree" in r for r in result["reasoning"])
+
+
 def test_simulate_price_is_pure_math_not_volume_prediction():
     result = simulate_price(new_price=17.99, cogs=5.81, referral_fee_pct=0.15, fulfillment_fee=3.09, other_cost=0.45,
                              ad_spend_levels=[0, 2, 4])
