@@ -117,7 +117,18 @@ only, never secrets).
 No Amazon API needed to get real data in: `GET /api/data-import/template/
 {listing|pricing|reviews|inventory}` returns a starter CSV, and `POST /api/
 data-import/{type}/validate` (then `/commit`) validates every row and reports
-exactly which rows failed and why  nothing is silently dropped.
+exactly which rows failed and why  nothing is silently dropped. The Settings
+page has a "Data Import (CSV)" panel wired to all three steps  download
+template, choose a file, validate (shows a per-row error table), then import.
+
+### Observability
+
+`GET /api/agents` reports, per intelligence module: run/success/failure counts
+and average duration (from the `intelligence_runs` table every `/analyze`,
+`/rewrite`, `/forecast`, and `/simulate` call writes to via `RunTracker`), plus
+LLM invocation/availability counts (logged once per `explain_or_degrade` call
+through the same decision log  no second metrics mechanism). Shown on the
+AI Agents page under each module's card.
 
 ## Running it
 

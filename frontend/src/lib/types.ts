@@ -158,6 +158,14 @@ export interface EvaluationResult {
   intelligence_modules: IntelligenceEvaluation
 }
 
+export interface IntelligenceRunStats {
+  run_count: number
+  success_count: number
+  failure_count: number
+  in_progress_count: number
+  avg_duration_seconds: number | null
+}
+
 export interface AgentStatus {
   id: string
   name: string
@@ -169,6 +177,12 @@ export interface AgentStatus {
   last_product: string | null
   last_executed_at: string | null
   status: 'idle' | 'never_run'
+  // Observability counters (spec §48), derived live from the decision
+  // log / intelligence_runs table -- only populated for the four
+  // intelligence agents (run_stats is absent for the Phase 1-3 agents).
+  llm_invocation_count: number
+  llm_available_count: number
+  run_stats?: IntelligenceRunStats
 }
 
 export interface SignalRunResult {
@@ -370,6 +384,38 @@ export interface InventoryWhatIfResult {
 }
 
 // --- Opportunity / Product Bundle View ---
+// ---------------------------------------------------------------- CSV import (spec §25)
+
+export type ImportDataType = 'listing' | 'pricing' | 'reviews' | 'inventory'
+
+export interface CsvTemplate {
+  data_type: ImportDataType
+  filename: string
+  csv_content: string
+}
+
+export interface CsvInvalidRow {
+  row: number
+  data: Record<string, string>
+  errors: string[]
+}
+
+export interface CsvValidationResult {
+  data_type: ImportDataType
+  valid_rows: Record<string, string>[]
+  invalid_rows: CsvInvalidRow[]
+  valid_count: number
+  invalid_count: number
+  total_rows: number
+}
+
+export interface CsvImportResult {
+  data_type: ImportDataType
+  imported: number
+  skipped: number
+  invalid_rows: CsvInvalidRow[]
+}
+
 export interface ProductIntelligenceOverview {
   provenance: Provenance
   product: ProductSummary

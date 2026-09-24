@@ -1,5 +1,6 @@
 import { CheckCircle2, Moon, Sun, XCircle } from 'lucide-react'
 import { AppShell } from '@/components/layout/AppShell'
+import { CsvImport } from '@/components/settings/CsvImport'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { CardSkeleton } from '@/components/shared/Skeletons'
 import { StatusBadge } from '@/components/shared/StatusBadge'
@@ -89,6 +90,15 @@ export default function Settings() {
               <StatusBadge status="DEMO" />
               <span>Data shown as part of the guided Demo Mode walkthrough.</span>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Data Import (CSV)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CsvImport />
           </CardContent>
         </Card>
 

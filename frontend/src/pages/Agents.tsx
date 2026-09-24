@@ -113,6 +113,23 @@ function AgentCard({
           {formatRelativeTime(agent.last_executed_at)}
         </p>
       )}
+      {(agent.run_stats || agent.llm_invocation_count > 0) && (
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground sm:grid-cols-3">
+          {agent.run_stats && (
+            <>
+              <Stat label="Runs" value={agent.run_stats.run_count} />
+              <Stat label="Succeeded" value={agent.run_stats.success_count} />
+              <Stat label="Failed" value={agent.run_stats.failure_count} />
+              <Stat
+                label="Avg duration"
+                value={agent.run_stats.avg_duration_seconds != null ? `${agent.run_stats.avg_duration_seconds.toFixed(2)}s` : '—'}
+              />
+            </>
+          )}
+          <Stat label="AI calls" value={agent.llm_invocation_count} />
+          <Stat label="AI available" value={`${agent.llm_available_count}/${agent.llm_invocation_count}`} />
+        </div>
+      )}
       <button
         onClick={onToggle}
         className="mt-1 self-start text-xs font-medium text-accent hover:underline"
@@ -136,5 +153,14 @@ function AgentCard({
         </div>
       )}
     </Card>
+  )
+}
+
+function Stat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div>
+      <div className="font-semibold text-foreground">{value}</div>
+      <div>{label}</div>
+    </div>
   )
 }

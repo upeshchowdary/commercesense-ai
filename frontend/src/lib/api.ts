@@ -1,11 +1,15 @@
 import type {
   ActivityEvent,
   AgentStatus,
+  CsvImportResult,
+  CsvTemplate,
+  CsvValidationResult,
   DecisionRequest,
   DecisionResponse,
   DetectedSignal,
   EvaluationResult,
   HealthStatus,
+  ImportDataType,
   IntelligenceApproveRequest,
   IntelligenceResult,
   InventoryForecastRow,
@@ -139,3 +143,29 @@ export const postInventoryApprove = (productId: string, body: IntelligenceApprov
 
 export const getProductIntelligenceOverview = (productId: string) =>
   request<ProductIntelligenceOverview>(`/products/${encodeURIComponent(productId)}/intelligence`)
+
+// ---------------------------------------------------------------- CSV import (spec §25)
+
+async function requestFile<T>(path: string, file: File): Promise<T> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch(`/api${path}`, { method: 'POST', body: form })
+  if (!res.ok) {
+    let detail = res.statusText
+    try {
+      const body = await res.json()
+      if (body?.detail) detail = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail)
+    } catch {
+      // response wasn't JSON — fall back to statusText
+    }
+    throw new ApiError(res.status, detail)
+  }
+  return (await res.json()) as T
+}
+
+export const getImportTemplate = (dataType: ImportDataType) =>
+  request<CsvTemplate>(`/data-import/template/${dataType}`)
+export const postValidateCsv = (dataType: ImportDataType, file: File) =>
+  requestFile<CsvValidationResult>(`/data-import/${dataType}/validate`, file)
+export const postCommitCsv = (dataType: ImportDataType, file: File) =>
+  requestFile<CsvImportResult>(`/data-import/${dataType}/commit`, file)

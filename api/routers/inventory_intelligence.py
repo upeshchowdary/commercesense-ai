@@ -88,6 +88,7 @@ def analyze_inventory(product_id: str) -> dict:
     explanation = explain_or_degrade(
         "You are an inventory analyst. Base your explanation only on the facts given -- never invent numbers.",
         prompt, _InventoryExplanation,
+        agent="inventory_intelligence", product_name=product["name"],
     )
     log_decision(agent="inventory_intelligence", product_name=product["name"], action="analyzed",
                  detail={"category": analysis["category"], "days_of_cover": analysis["days_of_cover"]})

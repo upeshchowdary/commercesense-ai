@@ -114,6 +114,7 @@ def analyze_pricing(product_id: str, body: PricingAnalyzeRequest) -> dict:
     explanation = explain_or_degrade(
         "You are a pricing analyst. Base your explanation only on the facts given -- never invent numbers.",
         prompt, _PricingExplanation,
+        agent="pricing_intelligence", product_name=product["name"],
     )
     log_decision(agent="pricing_intelligence", product_name=product["name"], action="analyzed",
                  detail={"price_state": analysis["price_state"], "margin_pct": analysis["contribution"]["margin_pct"]})

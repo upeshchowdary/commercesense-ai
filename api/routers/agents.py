@@ -4,9 +4,22 @@ from fastapi import APIRouter
 
 from api import deps  # noqa: F401
 
+import intelligence_db as idb
 from decision_log import read_decisions
 
 router = APIRouter(tags=["agents"])
+
+# Maps an agent id to the module string used as intelligence_runs.module
+# (see RunTracker call sites in api/routers/{listing,pricing,review,
+# inventory}_intelligence.py) -- only the four intelligence agents have
+# run-tracked observability; the original Phase 1-3 agents predate that
+# table and are covered by their own decision-log trace instead.
+_RUN_TRACKED_MODULE: dict[str, str] = {
+    "listing_intelligence": "listing",
+    "pricing_intelligence": "pricing",
+    "review_intelligence": "review",
+    "inventory_intelligence": "inventory",
+}
 
 _AGENT_META = [
     {
@@ -87,14 +100,28 @@ def list_agents() -> list[dict]:
     result = []
     for meta in _AGENT_META:
         names = set(meta["log_agent_names"])
-        last = next((e for e in all_entries if e.get("agent") in names), None)
-        result.append(
-            {
-                **{k: v for k, v in meta.items() if k != "log_agent_names"},
-                "last_action": last["action"] if last else None,
-                "last_product": last["product_name"] if last else None,
-                "last_executed_at": last["timestamp"] if last else None,
-                "status": "idle" if last else "never_run",
-            }
-        )
+        agent_entries = [e for e in all_entries if e.get("agent") in names]
+        last = agent_entries[0] if agent_entries else None
+
+        llm_entries = [e for e in agent_entries if e.get("action") == "llm_request"]
+        llm_available = sum(1 for e in llm_entries if e.get("detail", {}).get("available"))
+
+        card = {
+            **{k: v for k, v in meta.items() if k != "log_agent_names"},
+            "last_action": last["action"] if last else None,
+            "last_product": last["product_name"] if last else None,
+            "last_executed_at": last["timestamp"] if last else None,
+            "status": "idle" if last else "never_run",
+            # spec §48 observability counters -- all derived live from the
+            # existing decision log / intelligence_runs table, never a
+            # second tracking mechanism and never fabricated.
+            "llm_invocation_count": len(llm_entries),
+            "llm_available_count": llm_available,
+        }
+
+        module = _RUN_TRACKED_MODULE.get(meta["id"])
+        if module:
+            card["run_stats"] = idb.get_intelligence_run_stats(module)
+
+        result.append(card)
     return result

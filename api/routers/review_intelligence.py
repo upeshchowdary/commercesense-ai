@@ -95,6 +95,7 @@ def analyze_reviews(product_id: str) -> dict:
     explanation = explain_or_degrade(
         "You are a customer feedback analyst. Only summarize the verified statistics and themes given.",
         prompt, _ReviewSummary,
+        agent="review_intelligence", product_name=product["name"],
     )
 
     idb.insert_review_analysis(

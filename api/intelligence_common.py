@@ -19,6 +19,7 @@ from api import deps  # noqa: F401
 
 import db
 import intelligence_db as idb
+from decision_log import log_decision
 from providers.llm import get_llm_provider
 
 
@@ -53,12 +54,23 @@ class RunTracker:
         return False  # never swallow the exception
 
 
-def explain_or_degrade(system: str, prompt: str, schema: type[BaseModel]) -> dict[str, Any]:
+def explain_or_degrade(
+    system: str, prompt: str, schema: type[BaseModel], *, agent: str, product_name: str,
+) -> dict[str, Any]:
     """Never raises. On any provider failure/unavailability, returns a
     well-formed "unavailable" result instead — the deterministic analysis
-    around this call must always still work."""
+    around this call must always still work.
+
+    Every call logs one "llm_request" decision-trace entry (spec §48's
+    "LLM invocation count") through the same centralized decision_log —
+    no second metrics mechanism."""
     provider = get_llm_provider()
     result = provider.explain(system, prompt, schema)
+    log_decision(
+        agent=agent, product_name=product_name, action="llm_request",
+        detail={"provider": result.provider, "model": result.model, "available": result.available,
+                "error": None if result.available else result.error},
+    )
     if not result.available:
         return {
             "available": False,

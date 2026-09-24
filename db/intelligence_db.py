@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import datetime
 from typing import Any
 
 from db import get_connection
@@ -380,3 +381,42 @@ def get_intelligence_runs(module: str | None = None, product_id: str | None = No
     rows = conn.execute(query, params).fetchall()
     conn.close()
     return rows
+
+
+def get_intelligence_run_stats(module: str) -> dict:
+    """Observability counters for one intelligence module (spec §48),
+    derived from the same intelligence_runs table every /analyze,
+    /rewrite, /forecast, and /simulate call already writes to via
+    RunTracker -- no second metrics mechanism. Duration is computed in
+    Python (not SQL date math) because started_at/completed_at are
+    ISO-8601 strings with timezone offsets."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT status, started_at, completed_at FROM intelligence_runs WHERE module = ?",
+        (module,),
+    ).fetchall()
+    conn.close()
+
+    run_count = len(rows)
+    success_count = sum(1 for r in rows if r["status"] == "complete")
+    failure_count = sum(1 for r in rows if r["status"] == "failed")
+    in_progress_count = sum(1 for r in rows if r["status"] == "started")
+
+    durations: list[float] = []
+    for r in rows:
+        if not r["completed_at"]:
+            continue
+        try:
+            started = datetime.fromisoformat(r["started_at"])
+            completed = datetime.fromisoformat(r["completed_at"])
+            durations.append((completed - started).total_seconds())
+        except ValueError:
+            continue
+
+    return {
+        "run_count": run_count,
+        "success_count": success_count,
+        "failure_count": failure_count,
+        "in_progress_count": in_progress_count,
+        "avg_duration_seconds": round(sum(durations) / len(durations), 3) if durations else None,
+    }

@@ -80,6 +80,7 @@ def analyze_listing(product_id: str) -> dict:
     explanation = explain_or_degrade(
         "You are a listing quality diagnostician for an Amazon seller tool. Never invent facts not in the data given.",
         prompt, _ListingDiagnosis,
+        agent="listing_intelligence", product_name=product["name"],
     )
     log_decision(agent="listing_intelligence", product_name=product["name"], action="analyzed",
                  detail={"score": result["score"], "failed_rules": result["failed_rules"]})
@@ -112,6 +113,7 @@ def rewrite_listing(product_id: str, body: ListingRewriteRequest) -> dict:
             "You are a listing copywriter. You may only rephrase facts already given -- never invent new facts, "
             "numbers, or claims.",
             prompt, _TitleRewrite,
+            agent="listing_intelligence", product_name=product["name"],
         )
 
     if not result["available"]:
