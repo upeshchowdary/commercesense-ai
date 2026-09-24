@@ -57,30 +57,30 @@ export function Topbar({ title, actions }: { title: string; actions?: ReactNode 
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-border px-4 sm:px-6">
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-3">
         <button
           onClick={() => setMobileNavOpen(true)}
-          className="flex size-8 items-center justify-center rounded-md border border-border text-muted-foreground md:hidden"
+          className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground md:hidden"
           aria-label="Open navigation"
         >
           <Menu className="size-4" />
         </button>
-        <h1 className="text-lg font-semibold text-foreground">{title}</h1>
+        <h1 className="truncate text-lg font-semibold text-foreground">{title}</h1>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         {actions}
         <ThemeToggle />
         <Button variant="outline" size="sm" onClick={() => setDemoOpen(true)}>
           <PlayCircle className="size-3.5" />
-          Demo
+          <span className="hidden sm:inline">Demo</span>
         </Button>
         <button
           onClick={() => setOpen(true)}
-          className="flex items-center gap-2 rounded-md border border-border bg-panel px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          className="flex items-center gap-2 rounded-md border border-border bg-panel px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground sm:px-3"
         >
           <Search className="size-3.5" />
-          Search
-          <kbd className="ml-2 rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">
+          <span className="hidden sm:inline">Search</span>
+          <kbd className="ml-2 hidden rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] sm:inline">
             ⌘K
           </kbd>
         </button>
