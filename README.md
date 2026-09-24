@@ -51,7 +51,38 @@ plain English  never to produce the number itself.
 A fifth endpoint, `GET /api/products/{id}/intelligence`, synthesizes all four
 plus the existing synthetic signals into one per-product, fully-itemized
 **Attention Score**  see it live at `/products/:id/intelligence` in the
-frontend, the single best page for a quick demo.
+frontend, the single best page for a quick demo. The same four module tabs
+also appear inline on the regular Product Detail page, and the Products/
+Overview pages show a condensed per-product health-badge row and an
+"Attention" leaderboard so a judge never has to click into every product to
+see what needs attention.
+
+Every recommendation carries a collapsible **"Why does this matter?"** panel
+(what happened, why it matters, evidence, the calculation, what happens if
+nothing is done, the proposed action, what's missing) and, for pricing and
+inventory, a **"Why not? Alternatives considered"** panel  this is decision
+support, never an autonomous "just do it" claim.
+
+Products can be filtered with `listing:needs-attention`, `pricing:below-margin`,
+`reviews:emerging`, and `inventory:stockout-risk` typed directly into the
+Products page search box (client-side, no dedicated search API), and the
+command palette (`Ctrl/Cmd+K`) has a "Run Full Intelligence  {product}" entry
+per product alongside the existing page/product/signal jumps.
+
+Pricing's recommended range also does real **contradiction handling** (spec
+§20): if competitor price observations disagree with each other by more than
+15% of the median, the recommendation's confidence is downgraded to `low` and
+the reasoning says so explicitly, instead of silently trusting a median built
+from disagreeing sources.
+
+### Feature flags
+
+`ENABLE_LISTING_INTELLIGENCE` / `ENABLE_PRICING_INTELLIGENCE` /
+`ENABLE_REVIEW_INTELLIGENCE` / `ENABLE_INVENTORY_INTELLIGENCE` (all default
+`true`) actually gate each module's router at startup in `api/main.py`  set
+one to `false` and that module's endpoints 404 rather than just being hidden
+in the UI. `GET /api/health` reports the live state of every flag (booleans
+only, never secrets).
 
 ### Providers  all free, all optional
 
@@ -60,8 +91,20 @@ frontend, the single best page for a quick demo.
   neither is reachable, every module still returns its full deterministic
   analysis with `ai_explanation.available: false` and a clear message 
   never a crash, never a fabricated explanation.
-- **Web search**: pricing's optional live competitor-price research reuses
-  the existing Research Agent (Tavily)  no second research engine.
+- **Web search**: `providers/websearch.py` defines a `WebSearchProvider`
+  interface with two implementations  `TavilyProvider` (default, wraps the
+  existing Research Agent, no second research engine) and `SearXNGProvider`
+  (a real HTTP client against a self-hosted SearXNG instance's JSON API,
+  used only when `ENABLE_SEARXNG=true` and `SEARXNG_URL` point at one; falls
+  back to Tavily automatically otherwise  this project does not host a
+  SearXNG instance itself).
+- **Review theme clustering**: `intelligence/review_engine.py`'s deterministic
+  keyword/phrase theme detection (the only thing anything else depends on)
+  is optionally supplemented by `semantic_theme_clusters()`  local
+  sentence-transformers embeddings + scikit-learn KMeans, purely an extra
+  lens shown alongside the deterministic themes. Degrades to an empty list
+  (not an error) if those packages aren't installed or there isn't enough
+  review text to cluster.
 - **Amazon data**: `DemoDataProvider` (the synthetic dataset, default) and
   `CSVDataProvider` (see below) are fully implemented. `SPAPIProvider` is a
   documented interface stub only  there's no way to test a real SP-API
