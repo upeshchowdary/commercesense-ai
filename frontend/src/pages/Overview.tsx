@@ -4,6 +4,7 @@ import {
   FlaskConical,
   Gavel,
   Search,
+  Sparkles,
   TriangleAlert,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -61,6 +62,7 @@ export default function Overview() {
   )
 
   const recent = activityList.slice(0, 8)
+  const topAttention = [...productList].sort((a, b) => b.attention_score - a.attention_score).slice(0, 5)
 
   return (
     <AppShell title="Overview">
@@ -123,6 +125,46 @@ export default function Overview() {
             </CardContent>
           </Card>
         </div>
+
+        <Card>
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle>This Week's Attention (Listing + Pricing + Reviews + Inventory + Signals)</CardTitle>
+            <Link to="/products" className="text-xs font-medium text-accent hover:underline">
+              View all
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <CardSkeleton lines={5} />
+            ) : topAttention.length === 0 || topAttention.every((p) => p.attention_score === 0) ? (
+              <EmptyState icon={Sparkles} title="No products need attention right now" className="border-none py-6" />
+            ) : (
+              <ul className="flex flex-col divide-y divide-border">
+                {topAttention.map((p) => (
+                  <li key={p.product_id}>
+                    <Link
+                      to={`/products/${p.product_id}/intelligence`}
+                      className="flex items-center justify-between gap-3 py-2.5 text-sm hover:bg-muted/40"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span
+                          className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold ${
+                            p.attention_score >= 50 ? 'bg-danger/10 text-danger'
+                              : p.attention_score >= 20 ? 'bg-warning/10 text-warning' : 'bg-success/10 text-success'
+                          }`}
+                        >
+                          {p.attention_score}
+                        </span>
+                        <span className="truncate text-foreground">{p.name}</span>
+                      </div>
+                      <span className="shrink-0 text-xs text-muted-foreground">{p.category}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader className="flex-row items-center justify-between">

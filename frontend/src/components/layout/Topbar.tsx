@@ -119,6 +119,21 @@ export function Topbar({ title, actions }: { title: string; actions?: ReactNode 
                   </CommandItem>
                 ))}
               </CommandGroup>
+              <CommandSeparator />
+              <CommandGroup heading="Intelligence">
+                {productResults.map((p) => (
+                  <CommandItem
+                    key={`intel-${p.product_id}`}
+                    value={`intelligence-run-full-${p.name}`}
+                    onSelect={() => {
+                      navigate(`/products/${p.product_id}/intelligence`)
+                      setOpen(false)
+                    }}
+                  >
+                    Run Full Intelligence — {p.name}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
             </>
           )}
           {signalResults.length > 0 && (

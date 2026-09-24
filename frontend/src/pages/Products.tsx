@@ -12,7 +12,28 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatCurrency } from '@/lib/utils'
+import type { ProductSummary } from '@/lib/types'
 import { useProducts } from '@/hooks/useProducts'
+
+// Spec §32 filter syntax: listing:needs-attention, pricing:below-margin,
+// reviews:emerging, inventory:stockout-risk — parsed client-side out of
+// the free-text search box, no dedicated backend search API.
+const MODULE_FILTER_PATTERN = /(listing|pricing|reviews|inventory):(\S+)/gi
+
+function moduleFilterMatches(p: ProductSummary, module: string, value: string): boolean {
+  switch (module) {
+    case 'listing':
+      return value === 'needs-attention' ? (p.listing_score ?? 100) < 70 : true
+    case 'pricing':
+      return value === 'below-margin' ? p.price_state === 'BELOW_MARGIN_FLOOR' : true
+    case 'reviews':
+      return value === 'emerging' ? p.review_has_emerging_issue : true
+    case 'inventory':
+      return value === 'stockout-risk' ? p.inventory_category === 'STOCKOUT_RISK' : true
+    default:
+      return true
+  }
+}
 
 export default function Products() {
   const navigate = useNavigate()
@@ -26,16 +47,27 @@ export default function Products() {
     [data],
   )
 
+  const { moduleFilters, freeText } = useMemo(() => {
+    const filters: { module: string; value: string }[] = []
+    let rest = query
+    for (const m of query.matchAll(MODULE_FILTER_PATTERN)) {
+      filters.push({ module: m[1].toLowerCase(), value: m[2].toLowerCase() })
+      rest = rest.replace(m[0], '')
+    }
+    return { moduleFilters: filters, freeText: rest.trim() }
+  }, [query])
+
   const filtered = useMemo(() => {
     return (data ?? []).filter((p) => {
-      if (query && !p.name.toLowerCase().includes(query.toLowerCase())) return false
+      if (freeText && !p.name.toLowerCase().includes(freeText.toLowerCase())) return false
       if (category !== 'all' && p.category !== category) return false
       if (severity === 'flagged' && p.signal_count === 0) return false
       if (severity === 'high' && p.highest_severity !== 'high') return false
       if (severity === 'healthy' && p.signal_count > 0) return false
+      if (moduleFilters.some((f) => !moduleFilterMatches(p, f.module, f.value))) return false
       return true
     })
-  }, [data, query, category, severity])
+  }, [data, freeText, category, severity, moduleFilters])
 
   return (
     <AppShell title="Products">
@@ -46,7 +78,7 @@ export default function Products() {
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search products by name…"
+              placeholder="Search by name, or filter: listing:needs-attention pricing:below-margin reviews:emerging inventory:stockout-risk"
               className="pl-8"
             />
           </div>
@@ -102,6 +134,7 @@ export default function Products() {
                     </div>
                     <StatusBadge status="SYNTHETIC" />
                   </div>
+                  <IntelligenceBadgeRow product={p} />
                   <div className="mt-auto flex items-center justify-between">
                     <span className="text-sm font-medium text-foreground">
                       {formatCurrency(p.base_price)}
@@ -135,5 +168,47 @@ export default function Products() {
         )}
       </div>
     </AppShell>
+  )
+}
+
+// Spec §28.3 Intelligence Overview Cards, condensed onto the Products
+// list. Each dot is a quick module-health read; the full breakdown lives
+// on the Product Bundle View one click away.
+function IntelligenceBadgeRow({ product }: { product: ProductSummary }) {
+  const badges: { label: string; tone: 'success' | 'warning' | 'danger' }[] = [
+    {
+      label: `Listing ${product.listing_score ?? '–'}`,
+      tone: product.listing_score === null ? 'warning' : product.listing_score >= 70 ? 'success' : 'danger',
+    },
+    {
+      label: 'Pricing',
+      tone: product.price_state === 'BELOW_MARGIN_FLOOR' ? 'danger'
+        : product.price_state === 'HEALTHY_RANGE' ? 'success' : 'warning',
+    },
+    {
+      label: 'Reviews',
+      tone: product.review_has_emerging_issue ? 'danger'
+        : (product.review_negative_pct ?? 0) >= 15 ? 'warning' : 'success',
+    },
+    {
+      label: 'Inventory',
+      tone: product.inventory_category === 'STOCKOUT_RISK' ? 'danger'
+        : product.inventory_category === 'LOW_COVER' || product.inventory_category === 'OVERSTOCK' ? 'warning' : 'success',
+    },
+  ]
+  return (
+    <div className="flex flex-wrap gap-1">
+      {badges.map((b) => (
+        <span
+          key={b.label}
+          className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+            b.tone === 'success' ? 'bg-success/10 text-success'
+              : b.tone === 'danger' ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning'
+          }`}
+        >
+          {b.label}
+        </span>
+      ))}
+    </div>
   )
 }

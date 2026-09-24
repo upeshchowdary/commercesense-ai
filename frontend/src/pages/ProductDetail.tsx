@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { InventoryTab, ListingTab, PricingTab, ReviewsTab } from '@/components/intelligence/ModuleTabs'
 import { decisionLabel, decisionTone } from '@/lib/decisions'
 import { SIGNAL_TYPE_LABEL } from '@/lib/signalCopy'
 import { formatCurrency, formatDateTime, formatRelativeTime, formatSecondsAge, titleCase } from '@/lib/utils'
@@ -95,6 +96,10 @@ export default function ProductDetail() {
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="signals">Signals ({product.signals.length})</TabsTrigger>
+            <TabsTrigger value="listing">Listing</TabsTrigger>
+            <TabsTrigger value="pricing">Pricing</TabsTrigger>
+            <TabsTrigger value="reviews">Reviews</TabsTrigger>
+            <TabsTrigger value="inventory">Inventory</TabsTrigger>
             <TabsTrigger value="research">Research</TabsTrigger>
             <TabsTrigger value="evidence">Evidence</TabsTrigger>
             <TabsTrigger value="insights">Insights</TabsTrigger>
@@ -178,6 +183,19 @@ export default function ProductDetail() {
                 </Link>
               ))
             )}
+          </TabsContent>
+
+          <TabsContent value="listing">
+            <ListingTab productId={product.product_id} />
+          </TabsContent>
+          <TabsContent value="pricing">
+            <PricingTab productId={product.product_id} />
+          </TabsContent>
+          <TabsContent value="reviews">
+            <ReviewsTab productId={product.product_id} />
+          </TabsContent>
+          <TabsContent value="inventory">
+            <InventoryTab productId={product.product_id} />
           </TabsContent>
 
           <TabsContent value="research" className="flex flex-col gap-4">

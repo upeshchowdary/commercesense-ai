@@ -17,6 +17,15 @@ export interface ProductSummary {
   signal_count: number
   highest_severity: Severity | null
   planted_issue: SignalType | null
+  // Cross-module intelligence summary (spec §28.3 / §32) — computed the
+  // same way as ProductIntelligenceOverview, just inlined onto the list
+  // response so Products/Overview don't need N+1 requests.
+  listing_score: number | null
+  price_state: PriceState
+  inventory_category: InventoryCategory
+  review_negative_pct: number | null
+  review_has_emerging_issue: boolean
+  attention_score: number
 }
 
 export interface DailyMetric {
@@ -309,9 +318,18 @@ export interface ReviewIntelligenceResult {
   }
   velocity: { window_days: number; current_count: number; previous_count: number; pct_change: number | null; trend: string }
   themes: ReviewThemeResult[]
+  semantic_themes: SemanticThemeCluster[]
+  semantic_themes_available: boolean
   emerging_issues: EmergingIssue[]
   total_reviews_available: number
   ai_summary?: AiExplanation
+}
+
+export interface SemanticThemeCluster {
+  cluster_label: string
+  size: number
+  avg_rating: number
+  sample_reviews: { id: number | null; rating: number; review_text: string }[]
 }
 
 // --- Inventory ---
