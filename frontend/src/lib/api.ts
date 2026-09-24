@@ -8,6 +8,7 @@ import type {
   DecisionResponse,
   DetectedSignal,
   EvaluationResult,
+  PricingSimulateResult,
   HealthStatus,
   ImportDataType,
   IntelligenceApproveRequest,
@@ -112,7 +113,7 @@ export const postPricingAnalyze = (productId: string, useLiveResearch = false) =
     method: 'POST', body: JSON.stringify({ use_live_research: useLiveResearch }),
   })
 export const postPricingSimulate = (productId: string, newPrice: number, adSpendLevels?: number[]) =>
-  request<Record<string, unknown>>(`/pricing-intelligence/${encodeURIComponent(productId)}/simulate`, {
+  request<PricingSimulateResult>(`/pricing-intelligence/${encodeURIComponent(productId)}/simulate`, {
     method: 'POST', body: JSON.stringify({ new_price: newPrice, ad_spend_levels: adSpendLevels }),
   })
 export const postPricingApprove = (productId: string, body: IntelligenceApproveRequest) =>

@@ -139,6 +139,22 @@ export interface IntelligenceEvalRow {
   result: 'TP' | 'FP' | 'TN' | 'FN' | 'NO_DATA'
 }
 
+export interface PricingScenario {
+  ad_cost_per_unit?: number
+  variable_cost: number
+  contribution: number
+  margin_pct: number
+}
+
+export interface PricingSimulateResult {
+  provenance: string
+  simulation: boolean
+  product_id: string
+  price: number
+  base: PricingScenario
+  ad_spend_scenarios: PricingScenario[]
+}
+
 export interface IntelligenceEvaluation {
   data_available: boolean
   message?: string

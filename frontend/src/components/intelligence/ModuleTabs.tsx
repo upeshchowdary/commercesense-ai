@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { formatCurrency, titleCase } from '@/lib/utils'
+import { formatCurrency, formatPercent, titleCase } from '@/lib/utils'
 import type { IntelligenceApproveRequest } from '@/lib/types'
 import {
   useInventoryAnalyze,
@@ -296,7 +296,28 @@ export function PricingTab({ productId }: { productId: string }) {
             <div className="rounded-lg border border-border p-3 text-sm">
               <StatusBadge status="SYNTHETIC" />
               <p className="mt-2 text-xs text-muted-foreground">This is a scenario simulation, not a sales forecast.</p>
-              <pre className="mt-2 overflow-x-auto text-xs text-muted-foreground">{JSON.stringify(simulate.data, null, 2)}</pre>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <div><p className="text-xs text-muted-foreground">Price</p><p className="font-semibold">{formatCurrency(simulate.data.price)}</p></div>
+                <div><p className="text-xs text-muted-foreground">Contribution / unit</p><p className={`font-semibold ${simulate.data.base.contribution < 0 ? 'text-destructive' : ''}`}>{formatCurrency(simulate.data.base.contribution)}</p></div>
+                <div><p className="text-xs text-muted-foreground">Margin</p><p className="font-semibold">{formatPercent(simulate.data.base.margin_pct, 1)}</p></div>
+              </div>
+              {simulate.data.ad_spend_scenarios.length > 0 && (
+                <table className="mt-3 w-full text-xs">
+                  <thead className="text-muted-foreground">
+                    <tr><th className="text-left font-medium">Ad cost / unit</th><th className="text-right font-medium">Variable cost</th><th className="text-right font-medium">Contribution</th><th className="text-right font-medium">Margin</th></tr>
+                  </thead>
+                  <tbody>
+                    {simulate.data.ad_spend_scenarios.map((s) => (
+                      <tr key={s.ad_cost_per_unit ?? 0} className="border-t border-border">
+                        <td className="py-1">{formatCurrency(s.ad_cost_per_unit ?? 0)}</td>
+                        <td className="py-1 text-right">{formatCurrency(s.variable_cost)}</td>
+                        <td className={`py-1 text-right ${s.contribution < 0 ? 'text-destructive' : ''}`}>{formatCurrency(s.contribution)}</td>
+                        <td className="py-1 text-right">{formatPercent(s.margin_pct, 1)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           )}
         </CardContent>
