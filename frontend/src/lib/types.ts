@@ -193,6 +193,32 @@ export interface SignalRunResult {
   ran_at: string
 }
 
+export interface RecallMatch {
+  recall_id: number | null
+  recall_number: string | null
+  recall_date: string | null
+  title: string | null
+  url: string | null
+  product_names: string[]
+  hazards: string[]
+  remedies: string[]
+  matched_terms: string[]
+  brand_match: boolean
+}
+
+export interface RecallCheckResult {
+  product_id: string
+  available: boolean
+  provenance: 'LIVE' | 'CACHED'
+  source: string
+  queried_terms: string[]
+  retrieved_at: string
+  disclaimer: string
+  error: string | null
+  total_matches?: number
+  matches: RecallMatch[]
+}
+
 export interface HealthStatus {
   status: string
   gemini_api_key_set: boolean

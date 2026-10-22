@@ -25,6 +25,7 @@ from api.routers import (
     opportunity,
     pricing_intelligence,
     products,
+    recalls,
     research,
     review_intelligence,
     signals,
@@ -60,6 +61,9 @@ FEATURE_FLAGS = {
     "sp_api": _flag("ENABLE_SP_API", "false"),
     "searxng": _flag("ENABLE_SEARXNG", "false"),
     "ollama": _flag("ENABLE_OLLAMA", "true"),
+    # Free, key-less integrations (see providers/recalls.py, agent/keyless_search.py).
+    "recall_check": _flag("ENABLE_RECALL_CHECK"),
+    "keyless_search": _flag("ENABLE_KEYLESS_SEARCH", "false"),
 }
 
 app.include_router(products.router, prefix="/api")
@@ -79,6 +83,8 @@ if FEATURE_FLAGS["review_intelligence"]:
     app.include_router(review_intelligence.router, prefix="/api")
 app.include_router(opportunity.router, prefix="/api")
 app.include_router(data_import.router, prefix="/api")
+if FEATURE_FLAGS["recall_check"]:
+    app.include_router(recalls.router, prefix="/api")
 
 
 @app.get("/api/health")
@@ -89,6 +95,8 @@ def health() -> dict:
         "status": "ok",
         "gemini_api_key_set": bool(os.environ.get("GEMINI_API_KEY")),
         "tavily_api_key_set": bool(os.environ.get("TAVILY_API_KEY")),
+        "groq_api_key_set": bool(os.environ.get("GROQ_API_KEY")),
+        "openrouter_api_key_set": bool(os.environ.get("OPENROUTER_API_KEY")),
         "llm_provider": os.environ.get("LLM_PROVIDER", "ollama"),
         "feature_flags": FEATURE_FLAGS,
     }

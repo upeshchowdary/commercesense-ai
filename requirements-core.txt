@@ -1,0 +1,8 @@
+pydantic>=2.0
+google-genai>=0.3.0
+tavily-python>=0.5.0
+python-dotenv>=1.0.0
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+# Needed by the CSV import endpoint (FastAPI UploadFile); was missing before.
+python-multipart>=0.0.9

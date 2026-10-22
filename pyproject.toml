@@ -1,0 +1,12 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 140
+target-version = "py312"
+extend-exclude = ["frontend"]
+
+[tool.ruff.lint]
+# Start with real-bug rules only (syntax errors, undefined names, unused
+# imports/variables) so the existing code base passes; tighten over time.
+select = ["E9", "F"]

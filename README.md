@@ -87,10 +87,14 @@ only, never secrets).
 ### Providers  all free, all optional
 
 - **LLM**: `LLM_PROVIDER=ollama` (default, free, local  point `OLLAMA_BASE_URL`
-  at a running Ollama instance) or `gemini` (reuses `GEMINI_API_KEY`). If
-  neither is reachable, every module still returns its full deterministic
-  analysis with `ai_explanation.available: false` and a clear message 
-  never a crash, never a fabricated explanation.
+  at a running Ollama instance), `gemini` (reuses `GEMINI_API_KEY`), `groq`
+  (`GROQ_API_KEY`, free tier), `openrouter` (`OPENROUTER_API_KEY` +
+  `OPENROUTER_MODEL`, pick a `:free` model), or `auto`, which tries
+  `LLM_CHAIN` (default `gemini,groq,openrouter,ollama`) in order and uses the
+  first provider that answers, so one free tier hitting its rate limit
+  doesn't lose the explanation. If none is reachable, every module still
+  returns its full deterministic analysis with `ai_explanation.available:
+  false` and a clear message  never a crash, never a fabricated explanation.
 - **Web search**: `providers/websearch.py` defines a `WebSearchProvider`
   interface with two implementations  `TavilyProvider` (default, wraps the
   existing Research Agent, no second research engine) and `SearXNGProvider`
@@ -112,6 +116,38 @@ only, never secrets).
   unconfigured rather than pretending to work. The whole app runs fully
   without any Amazon credentials.
 
+### Free integrations (added in Phase 10)
+
+All free, none required, none on by default except the on-click recall check.
+See `.env.example` for every variable and where to get each free key.
+
+- **Product recall check** (`ENABLE_RECALL_CHECK`, default on, **no key**):
+  Product page -> Safety tab -> "Check recalls" queries the US CPSC public
+  recall API by product name (`providers/recalls.py`). Runs only on click.
+  Hits are shown as *possible* name matches with their cpsc.gov link and the
+  recall's own hazard/remedy text; if CPSC can't be reached the tab says the
+  product was **not** checked rather than showing "no recalls". US products
+  only. Endpoint: `GET /api/products/{id}/recalls`.
+- **Free LLM fallbacks**: Groq / OpenRouter / the `auto` chain above
+  (`providers/llm.py`). Free tiers can differ from paid ones in how prompts are
+  stored or used  read each provider's terms before sending real seller
+  data.
+- **Key-less search fallback** (`ENABLE_KEYLESS_SEARCH=true`, off by default):
+  if Tavily is missing or returns nothing, the Research Agent falls back to
+  the `ddgs` metasearch library (`agent/keyless_search.py`). It scrapes public
+  search engines without an official API contract, so it can be rate-limited
+  or break; results keep real URLs and snippets, so the existing grounding
+  guardrails apply unchanged.
+- **Tooling**: `requirements-core.txt` / `requirements-optional.txt` /
+  `requirements-dev.txt` (`requirements.txt` still installs everything),
+  ruff + pytest config in `pyproject.toml`, and a GitHub Actions workflow
+  (`.github/workflows/ci.yml`: lint, tests, seeded eval, frontend lint +
+  build).
+
+Not verified live: the build environment could not reach cpsc.gov, Groq,
+OpenRouter or the search engines, so those paths are covered by mocked-HTTP
+tests only  run one real call of each before a demo.
+
 ### CSV import
 
 No Amazon API needed to get real data in: `GET /api/data-import/template/
@@ -131,6 +167,9 @@ through the same decision log  no second metrics mechanism). Shown on the
 AI Agents page under each module's card.
 
 ## Running it
+
+Install: `pip install -r requirements.txt` (everything), or
+`pip install -r requirements-dev.txt` for a slim test/lint environment.
 
 Backend (from the project root, with `.venv` activated and `.env` populated):
 

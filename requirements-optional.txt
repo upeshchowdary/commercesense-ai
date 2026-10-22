@@ -1,0 +1,10 @@
+# Optional extras. The app degrades gracefully without any of these.
+
+# Review Intelligence's semantic theme clustering (spec 10.4).
+# review_engine.semantic_theme_clusters() returns [] if these are absent.
+sentence-transformers>=3.0.0
+scikit-learn>=1.4.0
+
+# Key-less web-search fallback for the Research Agent (agent/keyless_search.py).
+# Only used when ENABLE_KEYLESS_SEARCH=true and Tavily is missing/empty.
+ddgs>=9.0.0

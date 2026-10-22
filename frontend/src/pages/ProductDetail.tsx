@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { InventoryTab, ListingTab, PricingTab, ReviewsTab } from '@/components/intelligence/ModuleTabs'
+import { SafetyTab } from '@/components/intelligence/SafetyTab'
 import { decisionLabel, decisionTone } from '@/lib/decisions'
 import { SIGNAL_TYPE_LABEL } from '@/lib/signalCopy'
 import { formatCurrency, formatDateTime, formatRelativeTime, formatSecondsAge, titleCase } from '@/lib/utils'
@@ -100,6 +101,7 @@ export default function ProductDetail() {
             <TabsTrigger value="pricing">Pricing</TabsTrigger>
             <TabsTrigger value="reviews">Reviews</TabsTrigger>
             <TabsTrigger value="inventory">Inventory</TabsTrigger>
+            <TabsTrigger value="safety">Safety</TabsTrigger>
             <TabsTrigger value="research">Research</TabsTrigger>
             <TabsTrigger value="evidence">Evidence</TabsTrigger>
             <TabsTrigger value="insights">Insights</TabsTrigger>
@@ -196,6 +198,9 @@ export default function ProductDetail() {
           </TabsContent>
           <TabsContent value="inventory">
             <InventoryTab productId={product.product_id} />
+          </TabsContent>
+          <TabsContent value="safety">
+            <SafetyTab productId={product.product_id} />
           </TabsContent>
 
           <TabsContent value="research" className="flex flex-col gap-4">

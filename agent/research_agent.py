@@ -56,6 +56,7 @@ from pydantic import BaseModel
 from schema import ResearchBundle, SearchFinding
 from cache_store import get_cached_bundle, save_bundle_to_cache
 from decision_log import log_decision
+import keyless_search
 
 try:
     from tavily import TavilyClient
@@ -117,12 +118,15 @@ def _truncate_at_word_boundary(text: str, max_chars: int) -> str:
 
 
 def _execute_search(query: str, product_name: str) -> list[dict]:
-    """Runs the actual search against Tavily  the only search backend
-    this project is allowed to call at runtime (standing rule 2). A
-    failed or missing backend is logged and yields NO findings, never
-    a fake finding standing in for a result  an error string with an
-    empty source_url would otherwise be indistinguishable from a real,
-    citable finding to Agent 6 downstream."""
+    """Runs the actual search. Tavily is the primary backend; the optional
+    keyless fallback (keyless_search.py, off unless ENABLE_KEYLESS_SEARCH=true)
+    is only tried when Tavily is missing or returns nothing. A failed or
+    missing backend is logged and yields NO findings, never a fake finding
+    standing in for a result  an error string with an empty source_url
+    would otherwise be indistinguishable from a real, citable finding to
+    Agent 6 downstream."""
+    results: list[dict] = []
+
     if _tavily is None:
         log_decision(
             agent="research_agent",
@@ -130,25 +134,29 @@ def _execute_search(query: str, product_name: str) -> list[dict]:
             action="search_backend_missing",
             detail={"query": query, "reason": "TAVILY_API_KEY not configured"},
         )
-        return []
+    else:
+        try:
+            result = _tavily.search(query, max_results=4)
+            results = [
+                {
+                    "url": r.get("url", ""),
+                    "content": _truncate_at_word_boundary(r.get("content", ""), 800),
+                }
+                for r in result.get("results", [])
+            ]
+        except Exception as exc:  # noqa: BLE001
+            log_decision(
+                agent="research_agent",
+                product_name=product_name,
+                action="search_failed",
+                detail={"query": query, "reason": str(exc)},
+            )
 
-    try:
-        result = _tavily.search(query, max_results=4)
-        return [
-            {
-                "url": r.get("url", ""),
-                "content": _truncate_at_word_boundary(r.get("content", ""), 800),
-            }
-            for r in result.get("results", [])
-        ]
-    except Exception as exc:  # noqa: BLE001
-        log_decision(
-            agent="research_agent",
-            product_name=product_name,
-            action="search_failed",
-            detail={"query": query, "reason": str(exc)},
+    if not results and keyless_search.is_enabled():
+        results = keyless_search.keyless_search(
+            query, product_name, max_results=4, truncate=_truncate_at_word_boundary,
         )
-        return []
+    return results
 
 
 def _plan_queries(client: genai.Client, product_name: str) -> list[_PlannedQuery]:

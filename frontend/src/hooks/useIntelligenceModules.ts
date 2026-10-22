@@ -4,6 +4,7 @@ import {
   getListingIntelligence,
   getPricingIntelligence,
   getProductIntelligenceOverview,
+  getProductRecalls,
   getReviewIntelligence,
   postInventoryAnalyze,
   postInventoryApprove,
@@ -142,4 +143,11 @@ export function useInventoryApprove() {
       postInventoryApprove(productId, body),
     onSuccess: (_d, { productId }) => qc.invalidateQueries({ queryKey: ['intelligence', 'overview', productId] }),
   })
+}
+
+// --- Safety (US CPSC recalls) ---
+// A mutation, not a query: the check hits a live external service, so it runs
+// only when the user clicks, never on mount or refocus.
+export function useRecallCheck() {
+  return useMutation({ mutationFn: (productId: string) => getProductRecalls(productId) })
 }

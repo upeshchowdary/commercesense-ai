@@ -18,7 +18,7 @@ review_date (ISO date string), and optionally id.
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date
 
 THEME_VOCAB: dict[str, list[str]] = {
     "Kitchen": ["durability", "ease of use", "size", "quality", "packaging"],

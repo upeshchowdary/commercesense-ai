@@ -1,0 +1,6 @@
+# Test + lint tooling, on top of the core runtime (deliberately excludes the
+# heavy optional extras so CI stays fast).
+-r requirements-core.txt
+pytest>=8.0
+httpx>=0.27
+ruff>=0.6

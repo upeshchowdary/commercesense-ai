@@ -22,6 +22,7 @@ import type {
   ProductIntelligenceOverview,
   ProductSummary,
   ResearchResult,
+  RecallCheckResult,
   ReviewIntelligenceResult,
   SignalRunResult,
 } from './types'
@@ -124,6 +125,9 @@ export const postReviewAnalyze = (productId: string) =>
   request<ReviewIntelligenceResult>(`/review-intelligence/${encodeURIComponent(productId)}/analyze`, { method: 'POST' })
 export const postReviewApprove = (productId: string, body: IntelligenceApproveRequest) =>
   request<DecisionResponse>(`/review-intelligence/${encodeURIComponent(productId)}/approve`, { method: 'POST', body: JSON.stringify(body) })
+
+export const getProductRecalls = (productId: string) =>
+  request<RecallCheckResult>(`/products/${encodeURIComponent(productId)}/recalls`)
 
 export const getInventoryIntelligence = (productId: string) =>
   request<InventoryIntelligenceResult>(`/inventory-intelligence/${encodeURIComponent(productId)}`)

@@ -15,6 +15,7 @@ import {
   ReviewsTab,
   ScoreBadge,
 } from '@/components/intelligence/ModuleTabs'
+import { SafetyTab } from '@/components/intelligence/SafetyTab'
 
 export default function ProductIntelligence() {
   const { productId } = useParams<{ productId: string }>()
@@ -103,6 +104,7 @@ export default function ProductIntelligence() {
             <TabsTrigger value="pricing">Pricing</TabsTrigger>
             <TabsTrigger value="reviews">Reviews</TabsTrigger>
             <TabsTrigger value="inventory">Inventory</TabsTrigger>
+            <TabsTrigger value="safety">Safety</TabsTrigger>
           </TabsList>
 
           <TabsContent value="listing">
@@ -116,6 +118,9 @@ export default function ProductIntelligence() {
           </TabsContent>
           <TabsContent value="inventory">
             <InventoryTab productId={productId!} />
+          </TabsContent>
+          <TabsContent value="safety">
+            <SafetyTab productId={productId!} />
           </TabsContent>
         </Tabs>
       </div>
