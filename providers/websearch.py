@@ -1,22 +1,11 @@
 """
-websearch.py — the WebSearchProvider abstraction (spec §22). The rest of
-the app never talks to a specific search backend directly; it calls
-research_competitor_prices() below, which picks a provider and always
-hands back the same ResearchBundle shape regardless of which one ran.
+websearch.py — the WebSearchProvider abstraction with Free-First Hard Gate.
 
-Two providers:
-  - TavilyProvider (default): does NOT build a second research engine --
-    it calls the exact same agent/research_agent.py used by the existing
-    Research/Insight agents (Tavily + Gemini query planning, the
-    project's cache, the project's decision log) and hands the raw
-    findings back for the pricing engine to extract price mentions from.
-  - SearXNGProvider (optional, off by default): a real HTTP client
-    against a self-hosted SearXNG instance's JSON API
-    (GET {url}/search?q=...&format=json). Only used when both
-    ENABLE_SEARXNG=true and SEARXNG_URL are set; nothing in this project
-    stands up a SearXNG instance, so this is a genuine implementation
-    that is simply unconfigured/unused until someone points it at a real
-    one. Falls back to TavilyProvider automatically if unconfigured.
+In CommerceSense AI v3 with FREE_ONLY=true:
+  - Paid Tavily search is blocked by the hard gate.
+  - Free self-hosted SearXNG is supported if enabled and configured.
+  - If unconfigured, degrades safely to NoOpWebSearchProvider (returning empty findings)
+    without raising unexpected network errors.
 """
 
 from __future__ import annotations
@@ -37,8 +26,13 @@ for _sub in ("agent",):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from research_agent import run_research_agent  # noqa: E402
 from schema import ResearchBundle, SearchFinding  # noqa: E402
+from providers.gate import (  # noqa: E402
+    FreeFirstPolicyViolationError,
+    is_free_only_mode,
+    validate_egress_url,
+    validate_provider_initialization,
+)
 
 
 class SearchResult(Protocol):
@@ -57,18 +51,33 @@ class WebSearchProvider(Protocol):
     def search(self, query: str, max_results: int = 5, recency_days: int | None = None) -> list[dict]: ...
 
 
-class TavilyProvider:
-    """Wraps the existing Research Agent pipeline (Tavily + Gemini query
-    planning, project cache, project decision log) rather than a second
-    engine. is_configured() mirrors the same TAVILY_API_KEY check
-    research_agent.py itself makes."""
-
-    name = "tavily"
+class NoOpWebSearchProvider:
+    """Safe fallback when no free web search provider is configured."""
+    name = "noop"
 
     def is_configured(self) -> bool:
+        return False
+
+    def search(self, query: str, max_results: int = 5, recency_days: int | None = None) -> list[dict]:
+        return []
+
+
+class TavilyProvider:
+    """Paid Tavily provider. Blocked under FREE_ONLY=true."""
+    name = "tavily"
+
+    def __init__(self) -> None:
+        validate_provider_initialization(self.name)
+
+    def is_configured(self) -> bool:
+        if is_free_only_mode():
+            return False
         return bool(os.environ.get("TAVILY_API_KEY"))
 
     def search(self, query: str, max_results: int = 5, recency_days: int | None = None) -> list[dict]:
+        if is_free_only_mode():
+            raise FreeFirstPolicyViolationError("Tavily is blocked under FREE_ONLY=true policy")
+        from research_agent import run_research_agent
         bundle = run_research_agent(query, use_cache=True)
         return [
             {
@@ -83,14 +92,13 @@ class TavilyProvider:
 
 
 class SearXNGProvider:
-    """Real SearXNG JSON API client. Unconfigured (is_configured() ==
-    False) unless SEARXNG_URL is set -- callers must fall back to
-    TavilyProvider rather than treat this as always-available."""
-
+    """Free SearXNG JSON API client."""
     name = "searxng"
 
     def __init__(self) -> None:
         self.base_url = os.environ.get("SEARXNG_URL", "").rstrip("/")
+        if self.base_url:
+            validate_egress_url(self.base_url)
 
     def is_configured(self) -> bool:
         return bool(self.base_url)
@@ -100,13 +108,12 @@ class SearXNGProvider:
             return []
         params = {"q": query, "format": "json"}
         if recency_days is not None:
-            # SearXNG's coarse time_range buckets -- nearest fit, not exact.
             params["time_range"] = "day" if recency_days <= 1 else "week" if recency_days <= 7 else "month"
         url = f"{self.base_url}/search?{urllib_parse.urlencode(params)}"
         try:
             req = urllib_request.Request(url, headers={"Accept": "application/json"})
             with urllib_request.urlopen(req, timeout=15) as resp:
-                data = json.loads(resp.read())
+                data = json.loads(resp.read().decode("utf-8"))
         except (URLError, TimeoutError, OSError, json.JSONDecodeError):
             return []
         results = []
@@ -126,18 +133,20 @@ def get_websearch_provider() -> WebSearchProvider:
         searxng = SearXNGProvider()
         if searxng.is_configured():
             return searxng
+
+    if is_free_only_mode():
+        return NoOpWebSearchProvider()
+
     return TavilyProvider()
 
 
 def research_competitor_prices(product_name: str, use_cache: bool = True) -> ResearchBundle:
-    """Used by pricing_intelligence.py for competitor price observations.
-    Always returns a ResearchBundle regardless of which underlying
-    provider ran, so callers never need to know which one was used."""
+    """Used by pricing_intelligence.py for competitor price observations."""
     query_subject = f"{product_name} price comparison competitor pricing"
     provider = get_websearch_provider()
 
     if isinstance(provider, TavilyProvider):
-        # Preserves the exact existing cache/decision-log behavior.
+        from research_agent import run_research_agent
         return run_research_agent(query_subject, use_cache=use_cache)
 
     results = provider.search(query_subject, max_results=8)
@@ -148,6 +157,6 @@ def research_competitor_prices(product_name: str, use_cache: bool = True) -> Res
             SearchFinding(query=query_subject, source_url=r["url"], snippet=r["snippet"], retrieved_at=now)
             for r in results
         ],
-        search_queries_used=[query_subject],
+        search_queries_used=[query_subject] if results else [],
         gathered_at=now,
     )

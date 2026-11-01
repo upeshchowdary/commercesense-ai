@@ -133,7 +133,7 @@ export function DemoMode({ open, onOpenChange }: { open: boolean; onOpenChange: 
 
           {step === 2 && (
             <div className="flex max-h-64 flex-col gap-2 overflow-y-auto">
-              {(research.data?.bundle.findings ?? []).map((f, i) => (
+              {(research.data?.bundle.findings ?? []).map((f: any, i: number) => (
                 <div key={i} className="rounded-lg border border-border p-3 text-sm">
                   <p className="text-foreground">{f.snippet}</p>
                   {f.source_url && (

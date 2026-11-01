@@ -49,28 +49,45 @@ class CSVDataProvider:
 
 
 class SPAPIProvider:
-    """Amazon SP-API adapter boundary — NOT implemented. See module
-    docstring. Reports unconfigured unless real credentials are present,
-    and every data method raises NotImplementedError rather than a fake
-    success even if credentials happen to be set, since the calls
-    themselves have never been written or run."""
+    """Amazon SP-API adapter backed by providers/amazon_sp_api.py.
+    Reports unconfigured if credentials are not present, falling back
+    safely to DemoDataProvider or CSVDataProvider."""
 
     name = "sp_api"
 
     def __init__(self) -> None:
-        self._client_id = os.environ.get("AMAZON_SP_API_CLIENT_ID")
-        self._client_secret = os.environ.get("AMAZON_SP_API_CLIENT_SECRET")
-        self._refresh_token = os.environ.get("AMAZON_SP_API_REFRESH_TOKEN")
+        from providers.amazon_sp_api import AmazonSPAPIAdapter
+        self._adapter = AmazonSPAPIAdapter()
 
     def is_configured(self) -> bool:
-        return bool(self._client_id and self._client_secret and self._refresh_token)
+        return self._adapter.is_configured()
+
+    @property
+    def adapter(self):
+        return self._adapter
 
     def get_listing(self, asin: str) -> dict:
-        raise NotImplementedError(
-            "SP-API is not implemented in this build. Use DemoDataProvider "
-            "or CSVDataProvider, or implement this adapter against Amazon's "
-            "current Listings Items / Catalog Items API schema first."
-        )
+        if not self.is_configured():
+            raise NotImplementedError(
+                "SP-API is not configured. Use DemoDataProvider or CSVDataProvider, "
+                "or provide valid Amazon SP-API credentials."
+            )
+        # Attempt to find listing from DB or adapter
+        from db.session import db_session_scope
+        from db.models import ListingData, Product
+        with db_session_scope() as session:
+            prod = session.query(Product).filter_by(asin=asin).first()
+            if prod and prod.listing:
+                return {
+                    "product_id": prod.product_id,
+                    "title": prod.listing.title,
+                    "brand": prod.listing.brand,
+                    "bullets": prod.listing.bullets,
+                    "description": prod.listing.description,
+                    "image_count": prod.listing.image_count,
+                    "listing_status": prod.listing.listing_status,
+                }
+        return {"asin": asin, "status": "NOT_FOUND"}
 
 
 def get_amazon_data_provider() -> AmazonDataProvider:
@@ -78,4 +95,6 @@ def get_amazon_data_provider() -> AmazonDataProvider:
         sp = SPAPIProvider()
         if sp.is_configured():
             return sp
+    if os.environ.get("USE_CSV_DATA", "false").lower() == "true":
+        return CSVDataProvider()
     return DemoDataProvider()

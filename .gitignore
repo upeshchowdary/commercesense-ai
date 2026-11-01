@@ -6,8 +6,12 @@ __pycache__/
 *.log.jsonl
 .venv/
 venv/
+.vault/
 
 # frontend
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+
+# scratch
+scratch/

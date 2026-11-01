@@ -11,11 +11,36 @@ import os
 
 from api import deps  # noqa: F401  (sys.path side effect — must run first)
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from providers.gate import (
+    install_egress_interceptor,
+    is_free_only_mode,
+    uninstall_egress_interceptor,
+)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if is_free_only_mode():
+        install_egress_interceptor()
+    try:
+        yield
+    finally:
+        uninstall_egress_interceptor()
+
+
+app = FastAPI(title="Amazon Seller Copilot API", version="0.1.0", lifespan=lifespan)
+
 from api.routers import (
+    actions,
     agents,
+    competitors,
+    market_radar,
+    connections,
     data_import,
     decisions,
     evaluation,
@@ -29,8 +54,6 @@ from api.routers import (
     review_intelligence,
     signals,
 )
-
-app = FastAPI(title="Amazon Seller Copilot API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -77,8 +100,17 @@ if FEATURE_FLAGS["pricing_intelligence"]:
     app.include_router(pricing_intelligence.router, prefix="/api")
 if FEATURE_FLAGS["review_intelligence"]:
     app.include_router(review_intelligence.router, prefix="/api")
+app.include_router(opportunity.router, prefix="/api/v1")
 app.include_router(opportunity.router, prefix="/api")
 app.include_router(data_import.router, prefix="/api")
+app.include_router(connections.router, prefix="/api/v1")
+app.include_router(connections.router, prefix="/api")
+app.include_router(competitors.router, prefix="/api/v1")
+app.include_router(competitors.router, prefix="/api")
+app.include_router(market_radar.router, prefix="/api/v1")
+app.include_router(market_radar.router, prefix="/api")
+app.include_router(actions.router, prefix="/api/v1")
+app.include_router(actions.router, prefix="/api")
 
 
 @app.get("/api/health")
@@ -87,6 +119,7 @@ def health() -> dict:
     rule 1)."""
     return {
         "status": "ok",
+        "free_only_mode": is_free_only_mode(),
         "gemini_api_key_set": bool(os.environ.get("GEMINI_API_KEY")),
         "tavily_api_key_set": bool(os.environ.get("TAVILY_API_KEY")),
         "llm_provider": os.environ.get("LLM_PROVIDER", "ollama"),

@@ -140,15 +140,19 @@ def update_listing_recommendation_status(recommendation_id: int, status: str) ->
 def upsert_pricing_data(
     product_id: str, cogs: float, referral_fee_pct: float, fulfillment_fee: float,
     other_cost: float, target_margin_pct: float, currency: str = "USD",
+    closing_fee: float = 0.0, packaging_cost: float = 0.0, inbound_freight: float = 0.0,
+    ad_cost_per_unit: float = 0.0, returns_allowance: float = 0.0, min_margin_pct: float = 0.10,
 ) -> None:
     conn = get_connection()
     conn.execute(
         """
         INSERT OR REPLACE INTO pricing_data
-            (product_id, cogs, referral_fee_pct, fulfillment_fee, other_cost, target_margin_pct, currency)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+            (product_id, cogs, referral_fee_pct, fulfillment_fee, other_cost, target_margin_pct, currency,
+             closing_fee, packaging_cost, inbound_freight, ad_cost_per_unit, returns_allowance, min_margin_pct)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (product_id, cogs, referral_fee_pct, fulfillment_fee, other_cost, target_margin_pct, currency),
+        (product_id, cogs, referral_fee_pct, fulfillment_fee, other_cost, target_margin_pct, currency,
+         closing_fee, packaging_cost, inbound_freight, ad_cost_per_unit, returns_allowance, min_margin_pct),
     )
     conn.commit()
     conn.close()
@@ -164,19 +168,112 @@ def get_pricing_data(product_id: str) -> sqlite3.Row | None:
 def insert_pricing_observation(
     product_id: str, competitor: str, price: float, currency: str, source: str,
     source_url: str | None, observed_at: str, confidence: str, is_verified: bool,
+    competitor_asin: str | None = None, shipping_cost: float = 0.0,
+    landed_price: float | None = None, match_tier: str = "TIER_1_SAME_ASIN",
+    is_buy_box_winner: bool = False, fulfillment_channel: str = "FBA",
+    condition_type: str = "New", seller_rating: float | None = None,
 ) -> None:
+    lp = landed_price if landed_price is not None else round(price + shipping_cost, 2)
     conn = get_connection()
     conn.execute(
         """
         INSERT INTO pricing_observations
-            (product_id, competitor, price, currency, source, source_url, observed_at, confidence, is_verified)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (product_id, competitor, competitor_asin, price, shipping_cost, landed_price,
+             currency, match_tier, is_buy_box_winner, fulfillment_channel, condition_type,
+             seller_rating, source, source_url, observed_at, confidence, is_verified)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (product_id, competitor, price, currency, source, source_url, observed_at,
-         confidence, int(is_verified)),
+        (product_id, competitor, competitor_asin, price, shipping_cost, lp,
+         currency, match_tier, int(is_buy_box_winner), fulfillment_channel, condition_type,
+         seller_rating, source, source_url, observed_at, confidence, int(is_verified)),
     )
     conn.commit()
     conn.close()
+
+
+def insert_competitor_match(
+    product_id: str, candidate_asin: str, candidate_title: str, match_tier: str,
+    match_confidence: str, match_method: str, matched_fields: list, mismatched_fields: list,
+    seller_confirmed: bool | None = None, reviewed_at: str | None = None,
+    created_at: str | None = None,
+) -> int:
+    conn = get_connection()
+    now_str = created_at or datetime.now().isoformat()
+    cur = conn.execute(
+        """
+        INSERT INTO competitor_matches
+            (product_id, candidate_asin, candidate_title, match_tier, match_confidence,
+             match_method, matched_fields, mismatched_fields, seller_confirmed, reviewed_at, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (product_id, candidate_asin, candidate_title, match_tier, match_confidence,
+         match_method, json.dumps(matched_fields), json.dumps(mismatched_fields),
+         int(seller_confirmed) if seller_confirmed is not None else None, reviewed_at, now_str),
+    )
+    conn.commit()
+    match_id = cur.lastrowid
+    conn.close()
+    return match_id
+
+
+def get_competitor_matches(product_id: str) -> list[sqlite3.Row]:
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM competitor_matches WHERE product_id = ? ORDER BY id DESC",
+        (product_id,),
+    ).fetchall()
+    conn.close()
+    return rows
+
+
+def update_competitor_match_status(match_id: int, confirmed: bool, reviewed_at: str) -> None:
+    conn = get_connection()
+    conn.execute(
+        "UPDATE competitor_matches SET seller_confirmed = ?, reviewed_at = ? WHERE id = ?",
+        (int(confirmed), reviewed_at, match_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_pricing_snapshot_coverage(product_id: str) -> dict[str, Any]:
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT COUNT(*) as sample_count,
+               MIN(observed_at) as earliest_observation,
+               MAX(observed_at) as latest_observation
+        FROM pricing_observations
+        WHERE product_id = ?
+        """,
+        (product_id,),
+    ).fetchone()
+    conn.close()
+    if not row or not row["sample_count"]:
+        return {
+            "product_id": product_id,
+            "sample_count": 0,
+            "earliest_observation": None,
+            "latest_observation": None,
+            "tracked_days": 0,
+            "coverage_gap_days": 0,
+        }
+    earliest = row["earliest_observation"]
+    latest = row["latest_observation"]
+    try:
+        dt_early = datetime.fromisoformat(earliest[:19])
+        dt_late = datetime.fromisoformat(latest[:19])
+        tracked_days = max(1, (dt_late - dt_early).days + 1)
+    except Exception:
+        tracked_days = 1
+    return {
+        "product_id": product_id,
+        "sample_count": row["sample_count"],
+        "earliest_observation": earliest,
+        "latest_observation": latest,
+        "tracked_days": tracked_days,
+        "coverage_gap_days": 0,
+    }
 
 
 def get_pricing_observations(product_id: str) -> list[sqlite3.Row]:

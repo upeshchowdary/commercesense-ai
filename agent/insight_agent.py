@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -47,6 +48,7 @@ from dotenv import load_dotenv
 
 # Load .env from the project root (one level up from agent/) so that
 # `python orchestrator.py` works without pre-exporting vars in the shell.
+sys.path.insert(0, str(Path(__file__).parent.parent))
 load_dotenv(Path(__file__).parent.parent / ".env")
 
 from google import genai
@@ -270,23 +272,27 @@ def _call_gemini_for_insights(
 
 
 def run_insight_agent(bundle: ResearchBundle) -> InsightReport:
-    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    # FREE_ONLY Hard Gate Check: live Gemini insights are blocked
+    from providers.gate import validate_provider_initialization
+    validate_provider_initialization("gemini")
+
+    from providers.gemini_rotator import gemini_rotator
 
     insights: list[Insight] | None = None
     last_error: Exception | None = None
 
-    for attempt in range(2):  # one try, one retry  same pattern as the research agent
-        try:
-            insights = _call_gemini_for_insights(client, bundle)
-            break
-        except Exception as exc:  # noqa: BLE001  fail loud and safe, never guess
-            last_error = exc
-            log_decision(
-                agent="insight_agent",
-                product_name=bundle.product_name,
-                action="insight_attempt_failed",
-                detail={"attempt": attempt + 1, "reason": str(exc)},
-            )
+    try:
+        insights = gemini_rotator.execute_with_rotation(
+            lambda c: _call_gemini_for_insights(c, bundle)
+        )
+    except Exception as exc:  # noqa: BLE001  fail loud and safe, never guess
+        last_error = exc
+        log_decision(
+            agent="insight_agent",
+            product_name=bundle.product_name,
+            action="insight_attempt_failed",
+            detail={"attempt": 1, "reason": str(exc)},
+        )
 
     if insights is None:
         # Both attempts failed  fall back to an honest, fully-null
