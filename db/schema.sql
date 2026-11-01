@@ -2,7 +2,9 @@ CREATE TABLE IF NOT EXISTS products (
     product_id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     category TEXT NOT NULL,
-    base_price REAL NOT NULL
+    base_price REAL NOT NULL,
+    asin TEXT,
+    currency TEXT DEFAULT 'USD'
 );
 
 CREATE TABLE IF NOT EXISTS daily_metrics (
@@ -83,8 +85,14 @@ CREATE TABLE IF NOT EXISTS pricing_data (
     cogs REAL NOT NULL,
     referral_fee_pct REAL NOT NULL,
     fulfillment_fee REAL NOT NULL,
+    closing_fee REAL NOT NULL DEFAULT 0,
+    packaging_cost REAL NOT NULL DEFAULT 0,
+    inbound_freight REAL NOT NULL DEFAULT 0,
+    ad_cost_per_unit REAL NOT NULL DEFAULT 0,
+    returns_allowance REAL NOT NULL DEFAULT 0,
     other_cost REAL NOT NULL DEFAULT 0,
     target_margin_pct REAL NOT NULL,
+    min_margin_pct REAL NOT NULL DEFAULT 0.10,
     currency TEXT NOT NULL DEFAULT 'USD',
     FOREIGN KEY (product_id) REFERENCES products(product_id)
 );
@@ -93,13 +101,37 @@ CREATE TABLE IF NOT EXISTS pricing_observations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     product_id TEXT NOT NULL,
     competitor TEXT NOT NULL,
+    competitor_asin TEXT,
     price REAL NOT NULL,
+    shipping_cost REAL NOT NULL DEFAULT 0,
+    landed_price REAL NOT NULL DEFAULT 0,
     currency TEXT NOT NULL DEFAULT 'USD',
-    source TEXT NOT NULL,            -- 'synthetic' | 'csv' | 'web'
+    match_tier TEXT NOT NULL DEFAULT 'TIER_1_SAME_ASIN',
+    is_buy_box_winner INTEGER NOT NULL DEFAULT 0,
+    fulfillment_channel TEXT NOT NULL DEFAULT 'FBA',
+    condition_type TEXT NOT NULL DEFAULT 'New',
+    seller_rating REAL,
+    source TEXT NOT NULL,
     source_url TEXT,
     observed_at TEXT NOT NULL,
-    confidence TEXT NOT NULL,        -- low/medium/high
+    confidence TEXT NOT NULL,
     is_verified INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (product_id) REFERENCES products(product_id)
+);
+
+CREATE TABLE IF NOT EXISTS competitor_matches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id TEXT NOT NULL,
+    candidate_asin TEXT NOT NULL,
+    candidate_title TEXT NOT NULL,
+    match_tier TEXT NOT NULL,
+    match_confidence TEXT NOT NULL,
+    match_method TEXT NOT NULL,
+    matched_fields TEXT NOT NULL,
+    mismatched_fields TEXT NOT NULL,
+    seller_confirmed INTEGER,
+    reviewed_at TEXT,
+    created_at TEXT NOT NULL,
     FOREIGN KEY (product_id) REFERENCES products(product_id)
 );
 

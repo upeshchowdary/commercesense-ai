@@ -18,26 +18,32 @@ from api import deps  # noqa: F401
 
 import db
 import intelligence_db as idb
+from decision_log import log_decision
 
 router = APIRouter(tags=["data-import"])
 
+# Sample rows use a placeholder product_id that can never match a real
+# product (see _validate_rows' "unedited template" check below) -- a real
+# product id here previously let an unedited template silently overwrite
+# that product's real data on commit (found 2026-09-24: it overwrote
+# P001's synthetic pricing data during a demo/browser test).
 _TEMPLATES = {
     "listing": {
         "columns": ["product_id", "title", "brand", "product_type", "bullets", "description", "image_count"],
-        "sample_row": ["P001", "Example Product Title", "AcmeBrand", "Kitchen",
+        "sample_row": ["YOUR_PRODUCT_ID", "Example Product Title", "AcmeBrand", "Kitchen",
                         "Bullet one|Bullet two|Bullet three", "A short product description.", "5"],
     },
     "pricing": {
         "columns": ["product_id", "cogs", "referral_fee_pct", "fulfillment_fee", "other_cost", "target_margin_pct"],
-        "sample_row": ["P001", "5.81", "0.15", "3.09", "0.45", "0.30"],
+        "sample_row": ["YOUR_PRODUCT_ID", "5.81", "0.15", "3.09", "0.45", "0.30"],
     },
     "reviews": {
         "columns": ["product_id", "rating", "review_text", "review_date"],
-        "sample_row": ["P001", "4", "Works great, very durable.", "2026-08-01"],
+        "sample_row": ["YOUR_PRODUCT_ID", "4", "Works great, very durable.", "2026-08-01"],
     },
     "inventory": {
         "columns": ["product_id", "lead_time_days", "safety_days", "moq", "reorder_multiple"],
-        "sample_row": ["P001", "14", "5", "50", "25"],
+        "sample_row": ["YOUR_PRODUCT_ID", "14", "5", "50", "25"],
     },
 }
 
@@ -64,11 +70,19 @@ def _validate_rows(data_type: str, rows: list[dict]) -> dict:
     valid, invalid = [], []
     seen_single_row_types: set[str] = set()
 
+    sample_by_column = dict(zip(spec["columns"], spec["sample_row"]))
+    non_id_columns = [c for c in spec["columns"] if c != "product_id"]
+
     for i, row in enumerate(rows, start=2):  # header is row 1
         errors = []
         missing = [c for c in spec["columns"] if not (row.get(c) or "").strip()]
         if missing:
             errors.append(f"missing field(s): {', '.join(missing)}")
+
+        if non_id_columns and all(
+            (row.get(c) or "").strip() == sample_by_column[c] for c in non_id_columns
+        ):
+            errors.append("unedited template example row")
 
         pid = (row.get("product_id") or "").strip()
         if pid and pid not in known_ids:
@@ -140,10 +154,13 @@ async def validate_csv(data_type: str, file: UploadFile) -> dict:
 async def commit_csv(data_type: str, file: UploadFile) -> dict:
     rows = await _read_csv_rows(data_type, file)
     result = _validate_rows(data_type, rows)
+    known_ids = _known_product_ids()
 
     imported = 0
+    imported_product_ids: list[str] = []
     for row in result["valid_rows"]:
         pid = row["product_id"].strip()
+        overwrote_existing = pid in known_ids
         if data_type == "listing":
             bullets = [b.strip() for b in row["bullets"].split("|") if b.strip()]
             idb.upsert_listing_data(
@@ -164,5 +181,10 @@ async def commit_csv(data_type: str, file: UploadFile) -> dict:
                 int(row["reorder_multiple"]) if (row.get("reorder_multiple") or "").strip() else None,
             )
         imported += 1
+        imported_product_ids.append(pid)
+        log_decision(
+            agent="data_import", product_name=pid, action="csv_row_imported",
+            detail={"data_type": data_type, "overwrote_existing": overwrote_existing},
+        )
 
     return {"data_type": data_type, "imported": imported, "skipped": result["invalid_count"], "invalid_rows": result["invalid_rows"]}

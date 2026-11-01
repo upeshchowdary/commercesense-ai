@@ -107,9 +107,10 @@ export default function Settings() {
             <CardTitle>About</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            Sydon-1 — Amazon Seller Copilot. A CUBE Buildathon practice build (Sydon AI / CodeQuesters, 2026).
-            The synthetic and live sides of this app are kept intentionally separate — see the README in the
-            repository for the full architecture.
+            Amazon Seller Copilot. Enterprise Operating System for multi-marketplace brand intelligence,
+            AI product research & listing intelligence, and sub-50ms autonomous repricing (2026).
+            The synthetic and live sides of this app are kept intentionally separate — see the documentation
+            for the full architecture.
           </CardContent>
         </Card>
       </div>

@@ -4,21 +4,23 @@
 // both pages/ProductIntelligence.tsx (the full bundle view) and
 // pages/ProductDetail.tsx (inline tabs on the main product page).
 import { CheckCircle2, Loader2, MessageSquarePlus, RefreshCw, Sparkles, XCircle } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ConfidenceBadge } from '@/components/shared/ConfidenceBadge'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { CardSkeleton } from '@/components/shared/Skeletons'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { InventoryForecastChart } from '@/components/charts/InventoryForecastChart'
 import { WhyPanel, AlternativesPanel } from '@/components/shared/WhyPanel'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { formatCurrency, titleCase } from '@/lib/utils'
+import { formatCurrency, formatCurrencyOrNA, formatPercent, titleCase } from '@/lib/utils'
 import type { IntelligenceApproveRequest } from '@/lib/types'
 import {
   useInventoryAnalyze,
   useInventoryApprove,
+  useInventoryForecast,
   useInventoryIntelligence,
   useInventorySimulate,
   useListingAnalyze,
@@ -41,24 +43,34 @@ export function ScoreBadge({ score }: { score: number | null }) {
 }
 
 export function DecisionRow({
-  onApprove, onReject, onMoreResearch, pending,
+  onApprove, onReject, onMoreResearch, pending, isError, errorMessage, recordedAction,
 }: {
   onApprove: () => void
   onReject: () => void
   onMoreResearch: () => void
   pending: boolean
+  isError?: boolean
+  errorMessage?: string
+  /** Set after a successful decision, e.g. "Approved" -- disables repeat
+   * clicks until the underlying data refetches and this goes away. */
+  recordedAction?: string | null
 }) {
+  const disabled = pending || !!recordedAction
   return (
-    <div className="flex flex-wrap gap-2">
-      <Button size="sm" disabled={pending} onClick={onApprove}>
-        <CheckCircle2 className="size-3.5" /> Approve
-      </Button>
-      <Button size="sm" variant="destructive" disabled={pending} onClick={onReject}>
-        <XCircle className="size-3.5" /> Reject
-      </Button>
-      <Button size="sm" variant="outline" disabled={pending} onClick={onMoreResearch}>
-        <MessageSquarePlus className="size-3.5" /> Request More Research
-      </Button>
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" disabled={disabled} onClick={onApprove}>
+          <CheckCircle2 className="size-3.5" /> Approve
+        </Button>
+        <Button size="sm" variant="destructive" disabled={disabled} onClick={onReject}>
+          <XCircle className="size-3.5" /> Reject
+        </Button>
+        <Button size="sm" variant="outline" disabled={disabled} onClick={onMoreResearch}>
+          <MessageSquarePlus className="size-3.5" /> Request More Research
+        </Button>
+      </div>
+      {recordedAction && <p className="text-sm text-success">{recordedAction} · recorded</p>}
+      {isError && <p className="text-sm text-danger">{errorMessage ?? 'Could not record this decision.'}</p>}
     </div>
   )
 }
@@ -72,8 +84,39 @@ export function Stat({ label, value }: { label: string; value: string }) {
   )
 }
 
+/** Simulator inputs are free text (users paste "$16.99" or leave stray
+ * whitespace); Number("$16.99") is NaN, which used to get sent as JSON
+ * null and silently 422 with no rendered error. Strips currency
+ * formatting and requires a finite, positive result. */
+function parsePositiveNumber(raw: string): number | null {
+  const n = parseFloat(raw.replace(/[$,\s]/g, ''))
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
 function approveBody(decision: IntelligenceApproveRequest['decision'], field?: string): IntelligenceApproveRequest {
   return { decision, field, decided_by: 'Demo User' }
+}
+
+const DECISION_RECORDED_LABEL: Record<IntelligenceApproveRequest['decision'], string> = {
+  approved: 'Approved',
+  rejected: 'Rejected',
+  more_research_requested: 'More research requested',
+}
+
+/** For DecisionRow's recordedAction/isError props: a mutation's own
+ * .variables/.error, keyed to the module-specific approve() signature
+ * every *Approve hook shares ({ productId, body }). */
+function decisionRowProps(approve: {
+  isSuccess: boolean
+  isError: boolean
+  error: unknown
+  variables?: { body: IntelligenceApproveRequest }
+}) {
+  return {
+    recordedAction: approve.isSuccess ? DECISION_RECORDED_LABEL[approve.variables!.body.decision] : null,
+    isError: approve.isError,
+    errorMessage: approve.error instanceof Error ? approve.error.message : undefined,
+  }
 }
 
 // ------------------------------------------------------------------ Listing
@@ -106,7 +149,7 @@ export function ListingTab({ productId }: { productId: string }) {
               </div>
             ))}
           </div>
-          {data.failed_rules.length > 0 && (
+          {(data.failed_rules.length > 0 || data.warnings.length > 0) && (
             <div className="flex flex-wrap gap-1.5">
               {data.failed_rules.map((r) => <Badge key={r} variant="danger">{titleCase(r)}</Badge>)}
               {data.warnings.map((r) => <Badge key={r} variant="warning">{titleCase(r)}</Badge>)}
@@ -118,9 +161,12 @@ export function ListingTab({ productId }: { productId: string }) {
                 <>
                   <p className="text-foreground">{String(analyze.data.ai_diagnosis.data?.diagnosis ?? '')}</p>
                   <ul className="mt-2 list-inside list-disc text-muted-foreground">
-                    {['top_issue_1', 'top_issue_2', 'top_issue_3'].map((k) => (
-                      <li key={k}>{String(analyze.data!.ai_diagnosis!.data?.[k] ?? '')}</li>
-                    ))}
+                    {['top_issue_1', 'top_issue_2', 'top_issue_3']
+                      .map((k) => String(analyze.data!.ai_diagnosis!.data?.[k] ?? '').trim())
+                      .filter(Boolean)
+                      .map((issue) => (
+                        <li key={issue}>{issue}</li>
+                      ))}
                   </ul>
                 </>
               ) : (
@@ -186,8 +232,8 @@ export function ListingTab({ productId }: { productId: string }) {
             onApprove={() => approve.mutate({ productId, body: approveBody('approved', 'title') })}
             onReject={() => approve.mutate({ productId, body: approveBody('rejected', 'title') })}
             onMoreResearch={() => approve.mutate({ productId, body: approveBody('more_research_requested', 'title') })}
+            {...decisionRowProps(approve)}
           />
-          {approve.isSuccess && <p className="mt-2 text-xs text-success">Decision recorded.</p>}
         </CardContent>
       </Card>
     </div>
@@ -202,6 +248,7 @@ export function PricingTab({ productId }: { productId: string }) {
   const simulate = usePricingSimulate()
   const approve = usePricingApprove()
   const [simPrice, setSimPrice] = useState('')
+  const [simPriceError, setSimPriceError] = useState<string | null>(null)
 
   if (isError) return <ErrorState description="No pricing data available." onRetry={() => refetch()} />
   if (isLoading || !data) return <CardSkeleton lines={5} />
@@ -243,6 +290,18 @@ export function PricingTab({ productId }: { productId: string }) {
               <p className="text-sm text-muted-foreground">{data.recommendation.reasoning[0]}</p>
             )}
           </div>
+          {analyze.data?.ai_explanation && (
+            <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
+              {analyze.data.ai_explanation.available ? (
+                <div className="flex flex-col gap-1.5">
+                  <p className="text-foreground">{String(analyze.data.ai_explanation.data?.interpretation ?? '')}</p>
+                  <p className="text-muted-foreground">{String(analyze.data.ai_explanation.data?.trade_offs ?? '')}</p>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">{analyze.data.ai_explanation.message}</p>
+              )}
+            </div>
+          )}
           {data.observations.length > 0 && (
             <div>
               <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Competitor Observations</p>
@@ -255,7 +314,7 @@ export function PricingTab({ productId }: { productId: string }) {
               </div>
               {data.observations.length > 1 && (
                 <p className="mt-1.5 text-xs text-muted-foreground">
-                  {data.observations.length} observed prices, median {formatCurrency(data.price_distribution.median ?? 0)} —
+                  {data.observations.length} observed prices, median {formatCurrencyOrNA(data.price_distribution.median)} —
                   shown as a range, not a single silently-chosen number.
                 </p>
               )}
@@ -264,8 +323,8 @@ export function PricingTab({ productId }: { productId: string }) {
           <WhyPanel
             what={`Price state is ${data.price_state.replace(/_/g, ' ').toLowerCase()} at a current price of ${formatCurrency(data.current_price)}.`}
             why="Margin, competitor position, and inventory health together determine whether this price is sustainable — not competitor price alone."
-            evidence={data.observations.length > 0 ? `${data.observations.length} competitor observation(s), median ${formatCurrency(data.price_distribution.median ?? 0)}.` : 'No competitor observations on file yet.'}
-            calculation={`Contribution ${formatCurrency(data.contribution.contribution)} = price − variable cost. Breakeven ${formatCurrency(data.breakeven_price ?? 0)}. Target-margin price ${formatCurrency(data.target_margin_price ?? 0)}.`}
+            evidence={data.observations.length > 0 ? `${data.observations.length} competitor observation(s), median ${formatCurrencyOrNA(data.price_distribution.median)}.` : 'No competitor observations on file yet.'}
+            calculation={`Contribution ${formatCurrency(data.contribution.contribution)} = price − variable cost. Breakeven ${formatCurrencyOrNA(data.breakeven_price)}. Target-margin price ${formatCurrencyOrNA(data.target_margin_price)}.`}
             ifNothing={data.price_state === 'BELOW_MARGIN_FLOOR' ? 'Every unit sold continues to erode margin below the target floor.' : 'Price stays as-is; no immediate financial exposure detected from this data.'}
             proposedAction={data.recommendation.low !== null ? `Consider a price in ${formatCurrency(data.recommendation.low)}–${formatCurrency(data.recommendation.high!)}.` : 'Gather more cost/competitor data before recommending a change.'}
           />
@@ -283,20 +342,57 @@ export function PricingTab({ productId }: { productId: string }) {
         <CardHeader><CardTitle>Price Simulator</CardTitle></CardHeader>
         <CardContent className="flex flex-col gap-3">
           <div className="flex gap-2">
-            <Input value={simPrice} onChange={(e) => setSimPrice(e.target.value)} placeholder="New price, e.g. 19.99" className="max-w-40" />
+            <Input
+              type="number" min="0.01" step="0.01"
+              value={simPrice} onChange={(e) => setSimPrice(e.target.value)}
+              placeholder="New price, e.g. 19.99" className="max-w-40"
+            />
             <Button
               size="sm"
               disabled={simulate.isPending || !simPrice}
-              onClick={() => simulate.mutate({ productId, newPrice: Number(simPrice), adSpendLevels: [0, 1, 2] })}
+              onClick={() => {
+                const price = parsePositiveNumber(simPrice)
+                if (price === null) {
+                  setSimPriceError('Enter a price greater than 0.')
+                  return
+                }
+                setSimPriceError(null)
+                simulate.mutate({ productId, newPrice: price, adSpendLevels: [0, 1, 2] })
+              }}
             >
               Simulate
             </Button>
           </div>
+          {simPriceError && <p className="text-sm text-danger">{simPriceError}</p>}
+          {simulate.isError && (
+            <p className="text-sm text-danger">{simulate.error instanceof Error ? simulate.error.message : 'Simulation failed.'}</p>
+          )}
           {simulate.data && (
             <div className="rounded-lg border border-border p-3 text-sm">
               <StatusBadge status="SYNTHETIC" />
               <p className="mt-2 text-xs text-muted-foreground">This is a scenario simulation, not a sales forecast.</p>
-              <pre className="mt-2 overflow-x-auto text-xs text-muted-foreground">{JSON.stringify(simulate.data, null, 2)}</pre>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <div><p className="text-xs text-muted-foreground">Price</p><p className="font-semibold">{formatCurrency(simulate.data.price)}</p></div>
+                <div><p className="text-xs text-muted-foreground">Contribution / unit</p><p className={`font-semibold ${simulate.data.base.contribution < 0 ? 'text-destructive' : ''}`}>{formatCurrency(simulate.data.base.contribution)}</p></div>
+                <div><p className="text-xs text-muted-foreground">Margin</p><p className="font-semibold">{formatPercent(simulate.data.base.margin_pct, 1)}</p></div>
+              </div>
+              {simulate.data.ad_spend_scenarios.length > 0 && (
+                <table className="mt-3 w-full text-xs">
+                  <thead className="text-muted-foreground">
+                    <tr><th className="text-left font-medium">Ad cost / unit</th><th className="text-right font-medium">Variable cost</th><th className="text-right font-medium">Contribution</th><th className="text-right font-medium">Margin</th></tr>
+                  </thead>
+                  <tbody>
+                    {simulate.data.ad_spend_scenarios.map((s) => (
+                      <tr key={s.ad_cost_per_unit ?? 0} className="border-t border-border">
+                        <td className="py-1">{formatCurrency(s.ad_cost_per_unit ?? 0)}</td>
+                        <td className="py-1 text-right">{formatCurrency(s.variable_cost)}</td>
+                        <td className={`py-1 text-right ${s.contribution < 0 ? 'text-destructive' : ''}`}>{formatCurrency(s.contribution)}</td>
+                        <td className="py-1 text-right">{formatPercent(s.margin_pct, 1)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           )}
         </CardContent>
@@ -310,8 +406,8 @@ export function PricingTab({ productId }: { productId: string }) {
             onApprove={() => approve.mutate({ productId, body: approveBody('approved', 'price_range') })}
             onReject={() => approve.mutate({ productId, body: approveBody('rejected', 'price_range') })}
             onMoreResearch={() => approve.mutate({ productId, body: approveBody('more_research_requested', 'price_range') })}
+            {...decisionRowProps(approve)}
           />
-          {approve.isSuccess && <p className="mt-2 text-xs text-success">Decision recorded.</p>}
         </CardContent>
       </Card>
     </div>
@@ -341,7 +437,14 @@ export function ReviewsTab({ productId }: { productId: string }) {
         <CardContent className="flex flex-col gap-3">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Stat label="Negative %" value={`${data.rating_stats.negative_pct ?? 0}%`} />
-            <Stat label="30d Velocity" value={data.velocity.trend} />
+            <Stat
+              label="30d Velocity"
+              value={
+                data.velocity.pct_change !== null
+                  ? `${titleCase(data.velocity.trend)} (${data.velocity.pct_change >= 0 ? '+' : ''}${data.velocity.pct_change.toFixed(1)}%)`
+                  : titleCase(data.velocity.trend)
+              }
+            />
             <Stat label="Current / Prev" value={`${data.velocity.current_count} / ${data.velocity.previous_count}`} />
             <Stat label="Total Available" value={String(data.total_reviews_available)} />
           </div>
@@ -418,8 +521,8 @@ export function ReviewsTab({ productId }: { productId: string }) {
             onApprove={() => approve.mutate({ productId, body: approveBody('approved', 'review_theme') })}
             onReject={() => approve.mutate({ productId, body: approveBody('rejected', 'review_theme') })}
             onMoreResearch={() => approve.mutate({ productId, body: approveBody('more_research_requested', 'review_theme') })}
+            {...decisionRowProps(approve)}
           />
-          {approve.isSuccess && <p className="mt-2 text-xs text-success">Decision recorded.</p>}
         </CardContent>
       </Card>
     </div>
@@ -432,8 +535,17 @@ export function InventoryTab({ productId }: { productId: string }) {
   const { data, isLoading, isError, refetch } = useInventoryIntelligence(productId)
   const analyze = useInventoryAnalyze()
   const simulate = useInventorySimulate()
+  const forecast = useInventoryForecast()
   const approve = useInventoryApprove()
   const [reorderQty, setReorderQty] = useState('')
+  const [reorderQtyError, setReorderQtyError] = useState<string | null>(null)
+
+  // Deterministic/SYNTHETIC, no LLM or external call -- safe to load on
+  // mount, same as the rest of this tab's data.
+  useEffect(() => {
+    forecast.mutate({ productId, daysAhead: 30 })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productId])
 
   if (isError) return <ErrorState description="No inventory data available." onRetry={() => refetch()} />
   if (isLoading || !data) return <CardSkeleton lines={5} />
@@ -450,13 +562,17 @@ export function InventoryTab({ productId }: { productId: string }) {
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <Stat label="Current Inventory" value={String(data.current_inventory)} />
+            <Stat label="Current Inventory" value={`${Math.ceil(data.current_inventory)} units`} />
             <Stat label="Days of Cover" value={data.days_of_cover !== null ? String(data.days_of_cover) : 'N/A'} />
-            <Stat label="Reorder Point" value={String(data.reorder_point)} />
-            <Stat label="Suggested Reorder" value={String(data.suggested_reorder_quantity)} />
+            <Stat label="Reorder Point" value={`${Math.ceil(data.reorder_point)} units`} />
+            <Stat label="Suggested Reorder" value={`${Math.ceil(data.suggested_reorder_quantity)} units`} />
           </div>
-          {data.projected_stockout_date && (
-            <p className="text-sm text-danger">Projected stockout date: {data.projected_stockout_date}</p>
+          {data.current_inventory <= 0 ? (
+            <p className="rounded-md bg-danger/10 px-3 py-2 text-sm font-semibold text-danger">Out of stock now</p>
+          ) : (
+            data.projected_stockout_date && (
+              <p className="text-sm text-danger">Projected stockout date: {data.projected_stockout_date}</p>
+            )
           )}
           {analyze.data?.ai_explanation && (
             <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
@@ -474,8 +590,14 @@ export function InventoryTab({ productId }: { productId: string }) {
             what={`Category ${data.category.replace(/_/g, ' ').toLowerCase()}, ${data.days_of_cover ?? 'N/A'} days of cover remaining.`}
             why="Days of cover below lead time means a stockout is likely before a reorder can arrive — lost sales and rank damage follow."
             evidence={`Weighted average daily demand: ${data.demand.weighted_avg}. Current inventory: ${data.current_inventory}.`}
-            calculation={`Reorder point ${data.reorder_point} = lead-time demand + safety stock (${data.safety_stock}). Suggested reorder ${data.suggested_reorder_quantity} = target stock − projected available.`}
-            ifNothing={data.projected_stockout_date ? `Projected stockout around ${data.projected_stockout_date} if nothing changes.` : 'No stockout currently projected from this data.'}
+            calculation={`Reorder point ${Math.ceil(data.reorder_point)} units = lead-time demand + safety stock (${Math.ceil(data.safety_stock)} units). Suggested reorder ${Math.ceil(data.suggested_reorder_quantity)} units = target stock − projected available.`}
+            ifNothing={
+              data.current_inventory <= 0
+                ? 'Already out of stock — every day without a reorder is lost sales.'
+                : data.projected_stockout_date
+                  ? `Projected stockout around ${data.projected_stockout_date} if nothing changes.`
+                  : 'No stockout currently projected from this data.'
+            }
             proposedAction={`Consider reordering ${data.suggested_reorder_quantity} units.`}
           />
           <AlternativesPanel
@@ -489,18 +611,56 @@ export function InventoryTab({ productId }: { productId: string }) {
       </Card>
 
       <Card>
+        <CardHeader className="flex-row items-center justify-between">
+          <CardTitle>30-Day Inventory Forecast</CardTitle>
+          <StatusBadge status="SYNTHETIC" />
+        </CardHeader>
+        <CardContent>
+          {forecast.isPending && !forecast.data ? (
+            <CardSkeleton lines={4} />
+          ) : (
+            <InventoryForecastChart rows={forecast.data?.rows ?? []} reorderPoint={data.reorder_point} />
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader><CardTitle>Reorder Scenario</CardTitle></CardHeader>
         <CardContent className="flex flex-col gap-3">
           <div className="flex gap-2">
-            <Input value={reorderQty} onChange={(e) => setReorderQty(e.target.value)} placeholder="Reorder quantity, e.g. 500" className="max-w-48" />
+            <Input
+              type="number" min="1" step="1"
+              value={reorderQty} onChange={(e) => setReorderQty(e.target.value)}
+              placeholder="Reorder quantity, e.g. 500" className="max-w-48"
+            />
             <Button
               size="sm"
               disabled={simulate.isPending || !reorderQty}
-              onClick={() => simulate.mutate({ productId, reorderQuantity: Number(reorderQty) })}
+              onClick={() => {
+                const qty = parsePositiveNumber(reorderQty)
+                if (qty === null) {
+                  setReorderQtyError('Enter a quantity greater than 0.')
+                  return
+                }
+                setReorderQtyError(null)
+                const roundedQty = Math.round(qty)
+                simulate.mutate({ productId, reorderQuantity: roundedQty })
+                // Re-run the forecast with this reorder arriving after
+                // the configured lead time, so the chart shows its
+                // effect on the projected stockout.
+                forecast.mutate({
+                  productId, daysAhead: 30,
+                  inbound: [{ day_offset: data.config.lead_time_days, quantity: roundedQty }],
+                })
+              }}
             >
               Simulate
             </Button>
           </div>
+          {reorderQtyError && <p className="text-sm text-danger">{reorderQtyError}</p>}
+          {simulate.isError && (
+            <p className="text-sm text-danger">{simulate.error instanceof Error ? simulate.error.message : 'Simulation failed.'}</p>
+          )}
           {simulate.data && (
             <div className="rounded-lg border border-border p-3 text-sm">
               <StatusBadge status="SYNTHETIC" />
@@ -520,8 +680,8 @@ export function InventoryTab({ productId }: { productId: string }) {
             onApprove={() => approve.mutate({ productId, body: approveBody('approved', 'reorder_quantity') })}
             onReject={() => approve.mutate({ productId, body: approveBody('rejected', 'reorder_quantity') })}
             onMoreResearch={() => approve.mutate({ productId, body: approveBody('more_research_requested', 'reorder_quantity') })}
+            {...decisionRowProps(approve)}
           />
-          {approve.isSuccess && <p className="mt-2 text-xs text-success">Decision recorded.</p>}
         </CardContent>
       </Card>
     </div>

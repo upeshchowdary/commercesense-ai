@@ -1,14 +1,14 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import type { ActivityEvent } from '@/lib/types'
 import { titleCase } from '@/lib/utils'
 import { axisTickStyle, CHART_COLORS, tooltipContentStyle, tooltipLabelStyle } from './chart-theme'
 
-export function AgentActivityChart({ activity }: { activity: ActivityEvent[] }) {
-  const counts = new Map<string, number>()
-  for (const e of activity) {
-    counts.set(e.agent, (counts.get(e.agent) ?? 0) + 1)
-  }
-  const data = Array.from(counts.entries())
+// Takes the full-log by_agent counts from GET /api/activity/stats, not a
+// capped activity list -- a single bulk action (e.g. running signal
+// detection, ~84 events) used to push older agents' events out of the
+// previous 100-row window and undercount them here.
+export function AgentActivityChart({ byAgent }: { byAgent: Record<string, number> }) {
+  const data = Object.entries(byAgent)
+    .filter(([agent]) => agent)
     .map(([agent, count]) => ({ agent: titleCase(agent), count }))
     .sort((a, b) => b.count - a.count)
 

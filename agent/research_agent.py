@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -47,15 +48,22 @@ from dotenv import load_dotenv
 
 # Load .env from the project root (one level up from agent/) so that
 # `python orchestrator.py` works without pre-exporting vars in the shell.
+sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent))
 load_dotenv(Path(__file__).parent.parent / ".env")
 
 from google import genai
 from google.genai import types
 from pydantic import BaseModel
 
-from schema import ResearchBundle, SearchFinding
-from cache_store import get_cached_bundle, save_bundle_to_cache
-from decision_log import log_decision
+try:
+    from agent.schema import ResearchBundle, SearchFinding
+    from agent.cache_store import get_cached_bundle, save_bundle_to_cache
+    from agent.decision_log import log_decision
+except ImportError:
+    from schema import ResearchBundle, SearchFinding
+    from cache_store import get_cached_bundle, save_bundle_to_cache
+    from decision_log import log_decision
 
 try:
     from tavily import TavilyClient
@@ -69,7 +77,7 @@ except ImportError:
     _tavily = None
 
 
-MODEL = os.environ.get("RESEARCH_AGENT_MODEL", "gemini-3.6-flash")
+MODEL = os.environ.get("RESEARCH_AGENT_MODEL", "gemini-3.5-flash-lite")
 MAX_SEARCHES = 4
 CACHE_TTL_HOURS = 6
 
@@ -214,24 +222,24 @@ def run_research_agent(product_name: str, use_cache: bool = True) -> ResearchBun
             )
             return cached
 
-    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-    collector = _SearchCollector()
+    from providers.gemini_rotator import gemini_rotator
 
+    collector = _SearchCollector()
     planned_queries: list[_PlannedQuery] | None = None
     last_error: Exception | None = None
 
-    for attempt in range(2):  # one try, one retry  never give up after a single blip
-        try:
-            planned_queries = _plan_queries(client, product_name)
-            break
-        except Exception as exc:  # noqa: BLE001
-            last_error = exc
-            log_decision(
-                agent="research_agent",
-                product_name=product_name,
-                action="planning_attempt_failed",
-                detail={"attempt": attempt + 1, "reason": str(exc)},
-            )
+    try:
+        planned_queries = gemini_rotator.execute_with_rotation(
+            lambda c: _plan_queries(c, product_name)
+        )
+    except Exception as exc:  # noqa: BLE001
+        last_error = exc
+        log_decision(
+            agent="research_agent",
+            product_name=product_name,
+            action="planning_attempt_failed",
+            detail={"attempt": 1, "reason": str(exc)},
+        )
 
     if planned_queries is None:
         # Both attempts failed  fall back honestly to the weakest

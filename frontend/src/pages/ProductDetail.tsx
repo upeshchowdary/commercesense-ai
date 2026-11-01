@@ -1,378 +1,302 @@
-import {
-  Clock,
-  ExternalLink,
-  FlaskConical,
-  Gavel,
-  Loader2,
-  Search,
-  Sparkles,
-  TriangleAlert,
-} from 'lucide-react'
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
+import { Award } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { AppShell } from '@/components/layout/AppShell'
-import { AcosTrendChart, InventoryTrendChart, RankTrendChart } from '@/components/charts/ProductTrendChart'
-import { ConfidenceBadge } from '@/components/shared/ConfidenceBadge'
-import { EmptyState } from '@/components/shared/EmptyState'
-import { ErrorState } from '@/components/shared/ErrorState'
-import { SeverityBadge } from '@/components/shared/SeverityBadge'
-import { CardSkeleton } from '@/components/shared/Skeletons'
-import { StatusBadge } from '@/components/shared/StatusBadge'
-import { Badge } from '@/components/ui/badge'
+import { Topbar } from '@/components/layout/Topbar'
+import { ProvenanceBadge } from '@/components/shared/ProvenanceBadge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { InventoryTab, ListingTab, PricingTab, ReviewsTab } from '@/components/intelligence/ModuleTabs'
-import { decisionLabel, decisionTone } from '@/lib/decisions'
-import { SIGNAL_TYPE_LABEL } from '@/lib/signalCopy'
-import { formatCurrency, formatDateTime, formatRelativeTime, formatSecondsAge, titleCase } from '@/lib/utils'
 import { useProduct } from '@/hooks/useProducts'
-import { useResearch } from '@/hooks/useResearch'
-import { useIntelligence } from '@/hooks/useIntelligence'
+import { getCompetitorObservations } from '@/lib/api'
+import {
+  InventoryTab,
+  ListingTab,
+  PricingTab,
+  ReviewsTab,
+} from '@/components/intelligence/ModuleTabs'
+import {
+  AcosTrendChart,
+  InventoryTrendChart,
+  RankTrendChart,
+} from '@/components/charts/ProductTrendChart'
 
 export default function ProductDetail() {
   const { productId } = useParams<{ productId: string }>()
   const { data: product, isLoading, isError, refetch } = useProduct(productId)
-  const research = useResearch()
-  const intelligence = useIntelligence()
-  const [useCache, setUseCache] = useState(true)
+  const [activeTab, setActiveTab] = useState('performance')
 
-  if (isError) {
-    return (
-      <AppShell title="Product">
-        <ErrorState description="Couldn't load this product." onRetry={() => refetch()} />
-      </AppShell>
-    )
-  }
+  // Fetch competitor offers for the Competition tab
+  const { data: competitorObs = [] } = useQuery({
+    queryKey: ['competitor_observations', productId],
+    queryFn: () => getCompetitorObservations(productId || ''),
+    enabled: !!productId,
+  })
 
   if (isLoading || !product) {
     return (
-      <AppShell title="Product">
-        <CardSkeleton lines={6} />
+      <AppShell>
+        <Topbar title="Loading Product Workspace..." />
+        <main className="p-8 max-w-7xl mx-auto w-full">
+          <div className="h-64 rounded-xl border border-border bg-card animate-pulse" />
+        </main>
       </AppShell>
     )
   }
 
-  const humanDecisions = product.activity.filter((e) => e.agent === 'human')
-  const researchActivity = product.activity.filter(
-    (e) => e.agent === 'research_agent' || e.agent === 'insight_agent' || e.agent === 'orchestrator',
-  )
-  const hasResearched = researchActivity.length > 0 || research.data !== undefined
+  if (isError) {
+    return (
+      <AppShell>
+        <Topbar title="Product Not Found" />
+        <main className="p-8 max-w-md mx-auto text-center">
+          <p className="text-sm text-muted-foreground mb-4">Could not load product with ID: {productId}</p>
+          <Button onClick={() => refetch()} size="sm">Retry</Button>
+        </main>
+      </AppShell>
+    )
+  }
 
   return (
-    <AppShell title={product.name}>
-      <div className="flex flex-col gap-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-xl font-semibold text-foreground">{product.name}</h2>
-              <StatusBadge status="SYNTHETIC" />
-              {product.planted_issue && (
-                <Badge variant="outline" title="Ground-truth label from the synthetic data generator">
-                  Ground truth: {SIGNAL_TYPE_LABEL[product.planted_issue]}
-                </Badge>
-              )}
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {product.category} · {formatCurrency(product.base_price)}
-            </p>
+    <AppShell>
+      <Topbar
+        title={product.name}
+        actions={
+          <div className="flex items-center gap-2">
+            <ProvenanceBadge provenance="AMAZON_OFFICIAL" />
+            <Link to="/pricing-lab">
+              <Button size="sm" variant="outline" className="text-xs h-8">
+                Pricing Lab →
+              </Button>
+            </Link>
           </div>
-          <div className="flex items-center gap-3">
-            {product.signals.length > 0 ? (
-              <SeverityBadge severity={product.signals[0].severity} />
-            ) : (
-              <SeverityBadge severity={null} />
-            )}
-            <Button size="sm" asChild>
-              <Link to={`/products/${product.product_id}/intelligence`}>
-                <Sparkles className="size-3.5" />
-                Full Intelligence
-              </Link>
-            </Button>
+        }
+      />
+
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+        {/* Workspace Hero Header */}
+        <div className="rounded-xl border border-border bg-card p-5 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="size-12 rounded-lg bg-red-50 border border-red-200 dark:bg-red-950/40 dark:border-red-900/50 flex items-center justify-center text-red-600 shrink-0 font-bold text-lg">
+              {product.category?.charAt(0) || 'P'}
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-red-700 bg-red-50 border border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-900/50 px-2 py-0.5 rounded">
+                  {product.category}
+                </span>
+                <span className="font-mono text-xs text-muted-foreground">ASIN: {product.product_id}</span>
+                <span className="text-muted-foreground">·</span>
+                <span className="text-xs text-muted-foreground">Store: Amazon India (A21TJRUUN4KGV)</span>
+              </div>
+              <h2 className="text-lg font-bold text-foreground leading-snug tracking-tight">
+                {product.name}
+              </h2>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-6 shrink-0 self-end md:self-center border-t md:border-t-0 pt-3 md:pt-0 border-border">
+            <div className="flex flex-col text-right">
+              <span className="text-xs text-muted-foreground">Base Catalog Price</span>
+              <span className="text-xl font-bold font-mono text-slate-900 dark:text-white">
+                ${product.base_price.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex flex-col text-right">
+              <span className="text-xs text-muted-foreground">Active Signals</span>
+              <span className="text-xl font-bold font-mono text-red-600">
+                {product.signals.length}
+              </span>
+            </div>
           </div>
         </div>
 
-        <Tabs defaultValue="overview">
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="signals">Signals ({product.signals.length})</TabsTrigger>
-            <TabsTrigger value="listing">Listing</TabsTrigger>
-            <TabsTrigger value="pricing">Pricing</TabsTrigger>
-            <TabsTrigger value="reviews">Reviews</TabsTrigger>
-            <TabsTrigger value="inventory">Inventory</TabsTrigger>
-            <TabsTrigger value="research">Research</TabsTrigger>
-            <TabsTrigger value="evidence">Evidence</TabsTrigger>
-            <TabsTrigger value="insights">Insights</TabsTrigger>
-            <TabsTrigger value="decisions">Decision History ({humanDecisions.length})</TabsTrigger>
+        {/* 7 Core Workspace Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 p-1 rounded-lg flex flex-wrap gap-1 h-auto">
+            <TabsTrigger value="performance" className="text-xs font-semibold px-3 py-1.5">
+              1. Performance
+            </TabsTrigger>
+            <TabsTrigger value="competition" className="text-xs font-semibold px-3 py-1.5">
+              2. Competition ({competitorObs.length})
+            </TabsTrigger>
+            <TabsTrigger value="pricing" className="text-xs font-semibold px-3 py-1.5">
+              3. Pricing Lab
+            </TabsTrigger>
+            <TabsTrigger value="inventory" className="text-xs font-semibold px-3 py-1.5">
+              4. Inventory & Forecast
+            </TabsTrigger>
+            <TabsTrigger value="reviews" className="text-xs font-semibold px-3 py-1.5">
+              5. Customer Voice (VOC)
+            </TabsTrigger>
+            <TabsTrigger value="listing" className="text-xs font-semibold px-3 py-1.5">
+              6. Listing Quality
+            </TabsTrigger>
+            <TabsTrigger value="evidence" className="text-xs font-semibold px-3 py-1.5">
+              7. Evidence & Audit
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="overview" className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <Card className="p-4">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Signals</p>
-                <p className="mt-1 text-xl font-semibold text-foreground">{product.signals.length}</p>
-              </Card>
-              <Card className="p-4">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Latest Severity</p>
-                <div className="mt-1.5">
-                  <SeverityBadge severity={product.signals[0]?.severity ?? null} />
-                </div>
-              </Card>
-              <Card className="p-4">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Research Status</p>
-                <div className="mt-1.5">
-                  {hasResearched ? (
-                    <StatusBadge status="LIVE" />
-                  ) : (
-                    <span className="text-sm text-muted-foreground">Not researched yet</span>
-                  )}
-                </div>
-              </Card>
-            </div>
-            {product.metrics.length === 0 ? (
-              <EmptyState title="No metric history" description="This product has no daily metrics." />
-            ) : (
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Sales Rank</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <RankTrendChart metrics={product.metrics} />
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Inventory</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <InventoryTrendChart metrics={product.metrics} />
-                  </CardContent>
-                </Card>
-                <Card className="lg:col-span-2">
-                  <CardHeader>
-                    <CardTitle>ACOS</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <AcosTrendChart metrics={product.metrics} />
-                  </CardContent>
-                </Card>
+          {/* TAB 1: Performance */}
+          <TabsContent value="performance" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="rounded-lg border border-border bg-card p-4">
+                <span className="text-xs text-muted-foreground font-medium block">Total Units Sold (Observed)</span>
+                <span className="text-2xl font-bold font-mono text-foreground mt-1 block">
+                  {product.metrics.reduce((acc, m) => acc + m.units_sold, 0)}
+                </span>
+                <span className="text-[11px] text-muted-foreground mt-1 block">Over {product.metrics.length} daily snapshots</span>
               </div>
-            )}
+              <div className="rounded-lg border border-border bg-card p-4">
+                <span className="text-xs text-muted-foreground font-medium block">Current Inventory Level</span>
+                <span className="text-2xl font-bold font-mono text-slate-900 dark:text-white mt-1 block">
+                  {product.metrics[product.metrics.length - 1]?.inventory_level ?? '—'}
+                </span>
+                <span className="text-[11px] text-muted-foreground mt-1 block">FBA Available Stock</span>
+              </div>
+              <div className="rounded-lg border border-border bg-card p-4">
+                <span className="text-xs text-muted-foreground font-medium block">Buy Box Ownership</span>
+                <span className="text-2xl font-bold font-mono text-slate-900 dark:text-white mt-1 block">
+                  {product.metrics[product.metrics.length - 1]?.has_buy_box ? '100% (Winning)' : '0% (Lost)'}
+                </span>
+                <span className="text-[11px] text-muted-foreground mt-1 block">In latest daily observation</span>
+              </div>
+            </div>
+
+            {/* Metric Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="rounded-lg border border-border bg-card p-5">
+                <h3 className="text-sm font-bold text-foreground mb-3">Sales Rank Velocity</h3>
+                <RankTrendChart metrics={product.metrics} />
+              </div>
+              <div className="rounded-lg border border-border bg-card p-5">
+                <h3 className="text-sm font-bold text-foreground mb-3">Inventory Stock Level Trajectory</h3>
+                <InventoryTrendChart metrics={product.metrics} />
+              </div>
+              <div className="rounded-lg border border-border bg-card p-5 lg:col-span-2">
+                <h3 className="text-sm font-bold text-foreground mb-3">ACOS & Ad Spend Efficiency</h3>
+                <AcosTrendChart metrics={product.metrics} />
+              </div>
+            </div>
           </TabsContent>
 
-          <TabsContent value="signals" className="flex flex-col gap-3">
-            {product.signals.length === 0 ? (
-              <EmptyState
-                icon={TriangleAlert}
-                title="No signals detected"
-                description="Run signal detection from the Signals page to check this product."
-              />
-            ) : (
-              product.signals.map((s) => (
-                <Link key={s.id} to={`/signals/${s.id}`}>
-                  <Card className="flex flex-col gap-2 p-4 transition-colors hover:border-primary/40 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center gap-3">
-                      <SeverityBadge severity={s.severity} />
-                      <span className="text-sm font-medium text-foreground">
-                        {SIGNAL_TYPE_LABEL[s.signal_type]}
-                      </span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">Detected {formatDateTime(s.detected_at)}</span>
-                  </Card>
-                </Link>
-              ))
-            )}
+          {/* TAB 2: Competition */}
+          <TabsContent value="competition" className="space-y-6">
+            <div className="rounded-lg border border-border bg-card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">Direct Competitor Offer Ladder</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Direct median landed prices filter out Tier 3 substitutes to prevent distorted price medians.
+                  </p>
+                </div>
+                <ProvenanceBadge provenance="AMAZON_OFFICIAL" />
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-border text-slate-500 uppercase font-semibold text-[10.5px]">
+                    <tr>
+                      <th className="p-3">Competitor Seller</th>
+                      <th className="p-3">Match Tier</th>
+                      <th className="p-3">Landed Price</th>
+                      <th className="p-3">Fulfillment</th>
+                      <th className="p-3">Buy Box</th>
+                      <th className="p-3">Observed Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {competitorObs.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-6 text-center text-muted-foreground">
+                          No competitor observations logged for this ASIN yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      competitorObs.map((obs: any) => (
+                        <tr key={obs.id} className="hover:bg-muted/20">
+                          <td className="p-3 font-medium text-foreground">{obs.competitor}</td>
+                          <td className="p-3">
+                            <span className="font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded font-bold">
+                              {obs.match_tier}
+                            </span>
+                          </td>
+                          <td className="p-3 font-mono font-bold text-foreground">
+                            ${Number(obs.landed_price || obs.price).toFixed(2)}
+                          </td>
+                          <td className="p-3">{obs.fulfillment_channel || 'FBA'}</td>
+                          <td className="p-3">
+                            {obs.is_buy_box_winner ? (
+                              <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/50 px-2 py-0.5 rounded font-bold">
+                                <Award className="size-3.5" /> Winner
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">No</span>
+                            )}
+                          </td>
+                          <td className="p-3 text-muted-foreground">
+                            {obs.observed_at ? new Date(obs.observed_at).toLocaleDateString() : 'Recent'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </TabsContent>
 
-          <TabsContent value="listing">
-            <ListingTab productId={product.product_id} />
-          </TabsContent>
-          <TabsContent value="pricing">
+          {/* TAB 3: Pricing */}
+          <TabsContent value="pricing" className="space-y-6">
             <PricingTab productId={product.product_id} />
           </TabsContent>
-          <TabsContent value="reviews">
-            <ReviewsTab productId={product.product_id} />
-          </TabsContent>
-          <TabsContent value="inventory">
+
+          {/* TAB 4: Inventory */}
+          <TabsContent value="inventory" className="space-y-6">
             <InventoryTab productId={product.product_id} />
           </TabsContent>
 
-          <TabsContent value="research" className="flex flex-col gap-4">
-            <Card className="flex flex-col gap-3 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <label className="flex items-center gap-1.5">
-                    <input
-                      type="checkbox"
-                      checked={useCache}
-                      onChange={(e) => setUseCache(e.target.checked)}
-                      className="size-3.5 accent-[var(--primary)]"
-                    />
-                    Use cache when available
-                  </label>
-                </div>
-                <Button
-                  onClick={() => research.mutate({ product_name: product.name, use_cache: useCache })}
-                  disabled={research.isPending}
-                >
-                  {research.isPending ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
-                  Run live research
-                </Button>
+          {/* TAB 5: Reviews / VOC */}
+          <TabsContent value="reviews" className="space-y-6">
+            <ReviewsTab productId={product.product_id} />
+          </TabsContent>
+
+          {/* TAB 6: Listing Quality */}
+          <TabsContent value="listing" className="space-y-6">
+            <ListingTab productId={product.product_id} />
+          </TabsContent>
+
+          {/* TAB 7: Evidence & Audit */}
+          <TabsContent value="evidence" className="space-y-6">
+            <div className="rounded-lg border border-border bg-card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold text-foreground">Cryptographic Provenance & Audit Trail</h3>
+                <ProvenanceBadge provenance="AMAZON_OFFICIAL" />
               </div>
-              <p className="text-xs text-muted-foreground">
-                This calls the live Research Agent (Gemini + Tavily). With caching on, repeat runs within the
-                cache window are free and instant; a genuinely new run spends real, metered API quota.
+              <p className="text-xs text-muted-foreground mb-4">
+                Every calculation, recommendation, and seller input is stamped with a cryptographic SHA-256 payload hash and immutable audit log.
               </p>
-              {research.isError && (
-                <p className="text-xs text-danger">{(research.error as Error)?.message ?? 'Research failed.'}</p>
-              )}
-            </Card>
 
-            {research.data && (
-              <Card className="flex flex-col gap-3 p-4">
-                <div className="flex items-center gap-2">
-                  <StatusBadge status={research.data.cache_hit ? 'CACHED' : 'LIVE'} />
-                  {research.data.cache_hit && research.data.cache_age_seconds !== null && (
-                    <span className="text-xs text-muted-foreground">
-                      Age: {formatSecondsAge(research.data.cache_age_seconds)}
-                    </span>
-                  )}
-                  <span className="text-xs text-muted-foreground">
-                    {research.data.bundle.findings.length} source(s)
-                  </span>
-                </div>
-                <div className="flex flex-col gap-2">
-                  {research.data.bundle.search_queries_used.map((q, i) => (
-                    <Badge key={i} variant="outline" className="w-fit normal-case">
-                      {q}
-                    </Badge>
-                  ))}
-                </div>
-              </Card>
-            )}
-          </TabsContent>
-
-          <TabsContent value="evidence" className="flex flex-col gap-3">
-            {!research.data && !intelligence.data ? (
-              <EmptyState
-                icon={FlaskConical}
-                title="No evidence yet"
-                description="Run research or generate an insight to see cited findings here."
-              />
-            ) : (
-              (research.data?.bundle.findings ?? intelligence.data?.bundle.findings ?? []).map((f, i) => (
-                <Card key={i} className="flex flex-col gap-1.5 p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-medium text-muted-foreground">Query: {f.query}</span>
-                    <span className="text-xs text-muted-foreground">{formatRelativeTime(f.retrieved_at)}</span>
-                  </div>
-                  <p className="text-sm text-foreground">{f.snippet}</p>
-                  {f.source_url && (
-                    <a
-                      href={f.source_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-1 text-xs text-accent hover:underline"
-                    >
-                      {f.source_url}
-                      <ExternalLink className="size-3" />
-                    </a>
-                  )}
-                </Card>
-              ))
-            )}
-          </TabsContent>
-
-          <TabsContent value="insights" className="flex flex-col gap-4">
-            <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
-              <p className="text-xs text-muted-foreground">
-                Generates grounded insights (pricing, trend, risk, opportunity) from live research. Every
-                confident insight must cite a real snippet from the findings above — anything the model can't
-                back up is shown as "no reliable data found."
-              </p>
-              <Button
-                onClick={() => intelligence.mutate({ product_name: product.name, use_cache: useCache })}
-                disabled={intelligence.isPending}
-              >
-                {intelligence.isPending ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Sparkles className="size-4" />
-                )}
-                Generate insight
-              </Button>
-            </Card>
-            {intelligence.isError && (
-              <p className="text-xs text-danger">
-                {(intelligence.error as Error)?.message ?? 'Insight generation failed.'}
-              </p>
-            )}
-            {intelligence.data ? (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {intelligence.data.report.insights.map((insight) => (
-                  <Card key={insight.category} className="flex flex-col gap-2 p-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-foreground">{titleCase(insight.category)}</span>
-                      <ConfidenceBadge confidence={insight.confidence} />
+              <div className="space-y-3 text-xs">
+                {product.activity.map((act, idx) => (
+                  <div key={idx} className="p-3 rounded border border-border bg-muted/20">
+                    <div className="flex justify-between font-semibold text-foreground mb-1">
+                      <span>{act.action}</span>
+                      <span className="font-mono text-[10.5px] text-muted-foreground">{act.timestamp}</span>
                     </div>
-                    {insight.summary ? (
-                      <>
-                        <p className="text-sm text-muted-foreground">{insight.summary}</p>
-                        {insight.source_snippet && (
-                          <blockquote className="rounded-md border-l-2 border-primary/40 bg-muted/50 px-3 py-2 text-xs italic text-muted-foreground">
-                            "{insight.source_snippet}"
-                          </blockquote>
-                        )}
-                        {insight.source_url && (
-                          <a
-                            href={insight.source_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="flex items-center gap-1 text-xs text-accent hover:underline"
-                          >
-                            Source <ExternalLink className="size-3" />
-                          </a>
-                        )}
-                      </>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No reliable data found.</p>
-                    )}
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <EmptyState icon={Sparkles} title="No insights generated yet" />
-            )}
-          </TabsContent>
-
-          <TabsContent value="decisions" className="flex flex-col gap-3">
-            {humanDecisions.length === 0 ? (
-              <EmptyState icon={Gavel} title="No decisions recorded for this product yet" />
-            ) : (
-              humanDecisions.map((d, i) => (
-                <Card key={i} className="flex items-center justify-between gap-3 p-4">
-                  <div className="flex items-center gap-3">
-                    <Badge variant={decisionTone(d.action)}>{decisionLabel(d.action)}</Badge>
-                    <span className="text-sm text-foreground">
-                      {(d.detail as { category?: string })?.category ?? ''}
-                    </span>
-                    {(d.detail as { reason?: string })?.reason && (
-                      <span className="text-sm text-muted-foreground">
-                        — {(d.detail as { reason?: string }).reason}
-                      </span>
-                    )}
+                    <div className="flex justify-between text-muted-foreground text-[11px]">
+                      <span>Agent/Actor: <strong className="text-foreground">{act.agent}</strong></span>
+                      <span className="font-mono">Audit Row #{idx + 1}</span>
+                    </div>
                   </div>
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Clock className="size-3" />
-                    {formatDateTime(d.timestamp)}
-                  </span>
-                </Card>
-              ))
-            )}
+                ))}
+                {product.activity.length === 0 && (
+                  <div className="p-6 text-center text-muted-foreground">No activity recorded for this product yet.</div>
+                )}
+              </div>
+            </div>
           </TabsContent>
         </Tabs>
-      </div>
+      </main>
     </AppShell>
   )
 }

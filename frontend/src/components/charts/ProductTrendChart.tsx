@@ -4,7 +4,13 @@ import { axisTickStyle, CHART_COLORS, tooltipContentStyle, tooltipLabelStyle } f
 
 function shortDate(d: string) {
   const date = new Date(d)
-  return Number.isNaN(date.getTime()) ? d : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  // `d` is a plain YYYY-MM-DD date (no time), which the Date constructor
+  // parses as UTC midnight. Formatting without timeZone: 'UTC' then
+  // re-interprets that instant in the browser's local zone, which shifts
+  // the displayed date back a day in any negative UTC offset.
+  return Number.isNaN(date.getTime())
+    ? d
+    : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
 }
 
 export function RankTrendChart({ metrics }: { metrics: DailyMetric[] }) {
@@ -38,9 +44,12 @@ export function InventoryTrendChart({ metrics }: { metrics: DailyMetric[] }) {
 }
 
 export function AcosTrendChart({ metrics }: { metrics: DailyMetric[] }) {
+  // A day with ad spend but zero ad-attributed sales has an undefined
+  // ACOS, not 0% -- plotting it as 0 made the worst case (spend with no
+  // return) look like the best case (no waste) on the chart.
   const data = metrics.map((m) => ({
     date: shortDate(m.date),
-    acos: m.ad_sales > 0 ? m.ad_spend / m.ad_sales : 0,
+    acos: m.ad_sales > 0 ? m.ad_spend / m.ad_sales : m.ad_spend > 0 ? null : 0,
   }))
   return (
     <ResponsiveContainer width="100%" height={200}>
@@ -51,9 +60,9 @@ export function AcosTrendChart({ metrics }: { metrics: DailyMetric[] }) {
         <Tooltip
           contentStyle={tooltipContentStyle}
           labelStyle={tooltipLabelStyle}
-          formatter={(v) => `${(Number(v) * 100).toFixed(0)}%`}
+          formatter={(v) => (v === null ? 'no ad sales' : `${(Number(v) * 100).toFixed(0)}%`)}
         />
-        <Line type="monotone" dataKey="acos" name="ACOS" stroke={CHART_COLORS.red} strokeWidth={2} dot={false} />
+        <Line type="monotone" dataKey="acos" name="ACOS" stroke={CHART_COLORS.red} strokeWidth={2} dot={false} connectNulls={false} />
       </LineChart>
     </ResponsiveContainer>
   )

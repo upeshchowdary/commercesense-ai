@@ -97,19 +97,23 @@ def analyze_inventory(product_id: str) -> dict:
 
 @router.post("/inventory-intelligence/{product_id}/forecast")
 def forecast(product_id: str, body: InventoryForecastRequest) -> dict:
-    get_product_or_404(product_id)
-    analysis = _analyze(product_id)
-    inbound = [item.model_dump() for item in body.inbound]
-    rows = forecast_inventory(analysis["current_inventory"], analysis["demand"]["weighted_avg"], body.days_ahead, inbound)
+    product = get_product_or_404(product_id)
+    with RunTracker(product_id, "inventory", "SYNTHETIC"):
+        analysis = _analyze(product_id)
+        inbound = [item.model_dump() for item in body.inbound]
+        rows = forecast_inventory(analysis["current_inventory"], analysis["demand"]["weighted_avg"], body.days_ahead, inbound)
+    log_decision(agent="inventory_intelligence", product_name=product["name"], action="forecast_generated",
+                 detail={"days_ahead": body.days_ahead, "inbound_events": len(inbound)})
     return {"provenance": "SYNTHETIC", "product_id": product_id, "rows": rows}
 
 
 @router.post("/inventory-intelligence/{product_id}/simulate")
 def simulate(product_id: str, body: InventorySimulateRequest) -> dict:
     product = get_product_or_404(product_id)
-    analysis = _analyze(product_id)
-    lead_time = body.lead_time_days or analysis["config"]["lead_time_days"]
-    result = what_if_scenario(analysis["current_inventory"], analysis["demand"]["weighted_avg"], body.reorder_quantity, lead_time)
+    with RunTracker(product_id, "inventory", "SYNTHETIC"):
+        analysis = _analyze(product_id)
+        lead_time = body.lead_time_days or analysis["config"]["lead_time_days"]
+        result = what_if_scenario(analysis["current_inventory"], analysis["demand"]["weighted_avg"], body.reorder_quantity, lead_time)
     log_decision(agent="inventory_intelligence", product_name=product["name"], action="simulation_executed",
                  detail={"reorder_quantity": body.reorder_quantity, "lead_time_days": lead_time})
     return {"provenance": "SYNTHETIC", "simulation": True, "product_id": product_id, **result}

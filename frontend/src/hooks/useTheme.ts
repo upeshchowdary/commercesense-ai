@@ -2,21 +2,18 @@ import { useCallback, useEffect, useState } from 'react'
 
 export type Theme = 'dark' | 'light'
 
-const STORAGE_KEY = 'sydon-theme'
+const STORAGE_KEY = 'seller-copilot-theme'
 
 function readStoredTheme(): Theme {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored === 'light' || stored === 'dark') return stored
   } catch {
-    // localStorage unavailable (private mode, blocked storage, etc.)
+    // localStorage unavailable
   }
-  return 'dark'
+  return 'light' // Default to light-first as specified in UI/UX Prompt v3
 }
 
-// Dark is the tuned default (see index.css); light is an explicit,
-// persisted opt-in — never derived from OS prefers-color-scheme, so
-// the app doesn't silently flip mid-demo on a judge's machine.
 export function useTheme() {
   const [theme, setThemeState] = useState<Theme>(readStoredTheme)
 

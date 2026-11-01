@@ -1,6 +1,6 @@
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import type { DetectedSignal } from '@/lib/types'
-import { titleCase } from '@/lib/utils'
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { SIGNAL_TYPE_LABEL } from '@/lib/signalCopy'
+import type { DetectedSignal, SignalType } from '@/lib/types'
 import { axisTickStyle, CHART_COLORS, tooltipContentStyle, tooltipLabelStyle } from './chart-theme'
 
 const SEVERITY_COLOR: Record<string, string> = {
@@ -17,7 +17,7 @@ export function SignalDistributionChart({ signals }: { signals: DetectedSignal[]
     byType.set(s.signal_type, entry)
   }
   const data = Array.from(byType.values()).map((d) => ({
-    name: titleCase(d.type),
+    name: SIGNAL_TYPE_LABEL[d.type as SignalType] ?? d.type,
     High: d.high,
     Medium: d.medium,
   }))
@@ -37,11 +37,7 @@ export function SignalDistributionChart({ signals }: { signals: DetectedSignal[]
         <XAxis dataKey="name" tick={axisTickStyle} axisLine={{ stroke: CHART_COLORS.grid }} tickLine={false} />
         <YAxis allowDecimals={false} tick={axisTickStyle} axisLine={false} tickLine={false} width={28} />
         <Tooltip contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} cursor={{ fill: 'var(--panel-border)', opacity: 0.3 }} />
-        <Bar dataKey="High" stackId="a" fill={SEVERITY_COLOR.high} radius={[0, 0, 0, 0]}>
-          {data.map((_, i) => (
-            <Cell key={i} />
-          ))}
-        </Bar>
+        <Bar dataKey="High" stackId="a" fill={SEVERITY_COLOR.high} radius={[0, 0, 0, 0]} />
         <Bar dataKey="Medium" stackId="a" fill={SEVERITY_COLOR.medium} radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>

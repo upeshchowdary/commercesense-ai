@@ -137,3 +137,52 @@ def get_product_intelligence(product_id: str) -> dict:
         "existing_signal_count": len(existing_signals),
         "top_issues": top_issues[:5],
     }
+
+
+@router.get("/opportunities")
+def list_opportunities() -> dict:
+    """Evaluates all catalog products using the 6-dimension opportunity scoring engine."""
+    from intelligence.opportunity_evaluator import evaluate_product_opportunity
+
+    products = db.get_products()
+    scorecards = []
+    for p in products:
+        pid = p["product_id"]
+        pricing_data = idb.get_pricing_data(pid)
+        cost_inputs = dict(pricing_data) if pricing_data else None
+        obs = [o["price"] for o in idb.get_pricing_observations(pid)]
+        med = float(price_distribution(obs, p["base_price"])["median"] or p["base_price"])
+        sc = evaluate_product_opportunity(
+            product_id=pid,
+            product_name=p["name"],
+            cost_inputs=cost_inputs,
+            market_median_price=med,
+            competitor_count=len(obs) or 3,
+        )
+        scorecards.append(sc.to_dict())
+
+    scorecards.sort(key=lambda s: -s["total_score"])
+    return {
+        "total_evaluated": len(scorecards),
+        "opportunities": scorecards,
+    }
+
+
+@router.get("/opportunities/{product_id}")
+def get_opportunity_scorecard(product_id: str) -> dict:
+    """Returns detailed 6-dimension opportunity scorecard with GO / CONDITIONAL_GO / NO_GO verdict."""
+    from intelligence.opportunity_evaluator import evaluate_product_opportunity
+
+    product = get_product_or_404(product_id)
+    pricing_data = idb.get_pricing_data(product_id)
+    cost_inputs = dict(pricing_data) if pricing_data else None
+    obs = [o["price"] for o in idb.get_pricing_observations(product_id)]
+    med = float(price_distribution(obs, product["base_price"])["median"] or product["base_price"])
+    sc = evaluate_product_opportunity(
+        product_id=product_id,
+        product_name=product["name"],
+        cost_inputs=cost_inputs,
+        market_median_price=med,
+        competitor_count=len(obs) or 3,
+    )
+    return sc.to_dict()

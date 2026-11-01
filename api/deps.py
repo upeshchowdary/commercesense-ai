@@ -14,7 +14,15 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-for _sub in ("agent", "signals", "db", "eval", "data", "intelligence"):
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+else:
+    # Ensure PROJECT_ROOT is at index 0
+    sys.path.remove(str(PROJECT_ROOT))
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+for _sub in ("agent", "signals", "db", "eval", "data", "intelligence", "providers", "tasks"):
     _p = str(PROJECT_ROOT / _sub)
     if _p not in sys.path:
-        sys.path.insert(0, _p)
+        sys.path.append(_p)
+

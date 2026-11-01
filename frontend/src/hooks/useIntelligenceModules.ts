@@ -19,6 +19,19 @@ import {
   postReviewApprove,
 } from '@/lib/api'
 
+// Approve/Reject/Request-more-research and any analyze/simulate call
+// changes more than just the module's own query: it can change the
+// product's health badges (Products/Overview), the decision trace
+// (Activity), and per-module run_stats (AI Agents). Invalidating only
+// ['intelligence','overview',id] left those other surfaces stale until
+// an unrelated refetch happened to occur.
+function invalidateAfterDecision(qc: ReturnType<typeof useQueryClient>, productId: string) {
+  qc.invalidateQueries({ queryKey: ['intelligence', 'overview', productId] })
+  qc.invalidateQueries({ queryKey: ['products'] })
+  qc.invalidateQueries({ queryKey: ['activity'] })
+  qc.invalidateQueries({ queryKey: ['agents'] })
+}
+
 export function useProductIntelligenceOverview(productId: string | undefined) {
   return useQuery({
     queryKey: ['intelligence', 'overview', productId],
@@ -39,7 +52,10 @@ export function useListingAnalyze() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (productId: string) => postListingAnalyze(productId),
-    onSuccess: (_d, productId) => qc.invalidateQueries({ queryKey: ['intelligence', 'listing', productId] }),
+    onSuccess: (_d, productId) => {
+      qc.invalidateQueries({ queryKey: ['intelligence', 'listing', productId] })
+      qc.invalidateQueries({ queryKey: ['agents'] })
+    },
   })
 }
 export function useListingRewrite() {
@@ -50,7 +66,7 @@ export function useListingApprove() {
   return useMutation({
     mutationFn: ({ productId, body }: { productId: string; body: Parameters<typeof postListingApprove>[1] }) =>
       postListingApprove(productId, body),
-    onSuccess: (_d, { productId }) => qc.invalidateQueries({ queryKey: ['intelligence', 'overview', productId] }),
+    onSuccess: (_d, { productId }) => invalidateAfterDecision(qc, productId),
   })
 }
 
@@ -67,13 +83,18 @@ export function usePricingAnalyze() {
   return useMutation({
     mutationFn: ({ productId, useLiveResearch }: { productId: string; useLiveResearch?: boolean }) =>
       postPricingAnalyze(productId, useLiveResearch),
-    onSuccess: (_d, { productId }) => qc.invalidateQueries({ queryKey: ['intelligence', 'pricing', productId] }),
+    onSuccess: (_d, { productId }) => {
+      qc.invalidateQueries({ queryKey: ['intelligence', 'pricing', productId] })
+      qc.invalidateQueries({ queryKey: ['agents'] })
+    },
   })
 }
 export function usePricingSimulate() {
+  const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ productId, newPrice, adSpendLevels }: { productId: string; newPrice: number; adSpendLevels?: number[] }) =>
       postPricingSimulate(productId, newPrice, adSpendLevels),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['agents'] }),
   })
 }
 export function usePricingApprove() {
@@ -81,7 +102,7 @@ export function usePricingApprove() {
   return useMutation({
     mutationFn: ({ productId, body }: { productId: string; body: Parameters<typeof postPricingApprove>[1] }) =>
       postPricingApprove(productId, body),
-    onSuccess: (_d, { productId }) => qc.invalidateQueries({ queryKey: ['intelligence', 'overview', productId] }),
+    onSuccess: (_d, { productId }) => invalidateAfterDecision(qc, productId),
   })
 }
 
@@ -97,7 +118,10 @@ export function useReviewAnalyze() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (productId: string) => postReviewAnalyze(productId),
-    onSuccess: (_d, productId) => qc.invalidateQueries({ queryKey: ['intelligence', 'review', productId] }),
+    onSuccess: (_d, productId) => {
+      qc.invalidateQueries({ queryKey: ['intelligence', 'review', productId] })
+      qc.invalidateQueries({ queryKey: ['agents'] })
+    },
   })
 }
 export function useReviewApprove() {
@@ -105,7 +129,7 @@ export function useReviewApprove() {
   return useMutation({
     mutationFn: ({ productId, body }: { productId: string; body: Parameters<typeof postReviewApprove>[1] }) =>
       postReviewApprove(productId, body),
-    onSuccess: (_d, { productId }) => qc.invalidateQueries({ queryKey: ['intelligence', 'overview', productId] }),
+    onSuccess: (_d, { productId }) => invalidateAfterDecision(qc, productId),
   })
 }
 
@@ -121,18 +145,26 @@ export function useInventoryAnalyze() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (productId: string) => postInventoryAnalyze(productId),
-    onSuccess: (_d, productId) => qc.invalidateQueries({ queryKey: ['intelligence', 'inventory', productId] }),
+    onSuccess: (_d, productId) => {
+      qc.invalidateQueries({ queryKey: ['intelligence', 'inventory', productId] })
+      qc.invalidateQueries({ queryKey: ['agents'] })
+    },
   })
 }
 export function useInventoryForecast() {
+  const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ productId, daysAhead }: { productId: string; daysAhead?: number }) => postInventoryForecast(productId, daysAhead),
+    mutationFn: ({ productId, daysAhead, inbound }: { productId: string; daysAhead?: number; inbound?: Parameters<typeof postInventoryForecast>[2] }) =>
+      postInventoryForecast(productId, daysAhead, inbound),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['agents'] }),
   })
 }
 export function useInventorySimulate() {
+  const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ productId, reorderQuantity, leadTimeDays }: { productId: string; reorderQuantity: number; leadTimeDays?: number }) =>
       postInventorySimulate(productId, reorderQuantity, leadTimeDays),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['agents'] }),
   })
 }
 export function useInventoryApprove() {
@@ -140,6 +172,6 @@ export function useInventoryApprove() {
   return useMutation({
     mutationFn: ({ productId, body }: { productId: string; body: Parameters<typeof postInventoryApprove>[1] }) =>
       postInventoryApprove(productId, body),
-    onSuccess: (_d, { productId }) => qc.invalidateQueries({ queryKey: ['intelligence', 'overview', productId] }),
+    onSuccess: (_d, { productId }) => invalidateAfterDecision(qc, productId),
   })
 }

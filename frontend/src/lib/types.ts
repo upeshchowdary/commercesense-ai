@@ -139,6 +139,22 @@ export interface IntelligenceEvalRow {
   result: 'TP' | 'FP' | 'TN' | 'FN' | 'NO_DATA'
 }
 
+export interface PricingScenario {
+  ad_cost_per_unit?: number
+  variable_cost: number
+  contribution: number
+  margin_pct: number
+}
+
+export interface PricingSimulateResult {
+  provenance: string
+  simulation: boolean
+  product_id: string
+  price: number
+  base: PricingScenario
+  ad_spend_scenarios: PricingScenario[]
+}
+
 export interface IntelligenceEvaluation {
   data_available: boolean
   message?: string
@@ -185,6 +201,12 @@ export interface AgentStatus {
   run_stats?: IntelligenceRunStats
 }
 
+export interface ActivityStats {
+  total: number
+  by_agent: Record<string, number>
+  by_action: Record<string, number>
+}
+
 export interface SignalRunResult {
   inventory_stockout_flagged: number
   ppc_waste_flagged: number
@@ -195,8 +217,11 @@ export interface SignalRunResult {
 
 export interface HealthStatus {
   status: string
+  free_only_mode?: boolean
   gemini_api_key_set: boolean
   tavily_api_key_set: boolean
+  llm_provider?: string
+  feature_flags?: Record<string, boolean>
 }
 
 export interface DecisionRequest {
@@ -291,6 +316,7 @@ export interface PricingIntelligenceResult {
   provenance: Provenance
   product_id: string
   current_price: number
+  costs?: Record<string, any>
   cost_inputs: { cogs: number; referral_fee_pct: number; fulfillment_fee: number; other_cost: number; target_margin_pct: number; currency: string }
   contribution: { variable_cost: number; contribution: number; margin_pct: number | null }
   breakeven_price: number | null
@@ -434,4 +460,153 @@ export interface ProductIntelligenceOverview {
   review_has_emerging_issue: boolean
   existing_signal_count: number
   top_issues: string[]
+}
+
+
+// =====================================================================
+// CommerceSense AI v3 Extended Types
+// =====================================================================
+
+export type ProvenanceType =
+  | 'AMAZON_OFFICIAL'
+  | 'PUBLIC_NEWS'
+  | 'SELLER_INPUT'
+  | 'CALCULATED'
+  | 'MODELLED'
+  | 'CACHED'
+  | 'DEMO'
+  | 'MISSING'
+
+export type MatchTier = 'TIER_1_SAME_ASIN' | 'TIER_2_EXACT_EQUIVALENT' | 'TIER_3_SUBSTITUTE'
+
+export interface CompetitorOffer {
+  id: number
+  product_id: string
+  competitor: string
+  competitor_asin?: string
+  price: number
+  shipping_cost: number
+  landed_price: number
+  currency: string
+  match_tier: MatchTier
+  is_buy_box_winner: boolean
+  fulfillment_channel: string
+  condition_type: string
+  seller_rating?: number
+  source: string
+  observed_at: string
+  confidence: string
+  is_verified: boolean
+}
+
+export interface CompetitorCandidate {
+  id: number
+  product_id: string
+  candidate_asin: string
+  candidate_title: string
+  match_tier: MatchTier
+  match_confidence: string
+  match_method: string
+  matched_fields: string[]
+  mismatched_fields: string[]
+  seller_confirmed?: boolean | null
+  reviewed_at?: string | null
+}
+
+export interface MarketRadarNewsItem {
+  id: string
+  headline: string
+  summary: string
+  source: string
+  url: string
+  published_at: string
+  retrieved_at: string
+  sentiment: 'positive' | 'neutral' | 'negative'
+  category?: string
+}
+
+export interface MarketRadarTopic {
+  keyword: string
+  category: string
+  momentum_score: number
+  direction: 'RISING' | 'COOLING' | 'STABLE' | 'EMERGING'
+  evidence_count: number
+  sources: string[]
+  confidence: 'high' | 'medium' | 'low'
+  last_updated: string
+  news?: MarketRadarNewsItem[]
+}
+
+export interface OpportunityScorecard {
+  id: string
+  keyword: string
+  category: string
+  total_score: number
+  verdict: 'GO' | 'CONDITIONAL_GO' | 'NO_GO' | 'INSUFFICIENT_EVIDENCE'
+  dimension_scores: {
+    demand_momentum: number
+    competition_density: number
+    margin_feasibility: number
+    capital_moq: number
+    seasonality: number
+    policy_risk: number
+  }
+  confidence: 'high' | 'medium' | 'low'
+  evidence_citations: string[]
+  inviolable_floor_breached: boolean
+  rationale: string
+}
+
+export interface ActionQueueItem {
+  id: number
+  product_id: string
+  product_name?: string
+  asin?: string
+  category?: string
+  action_type: string
+  title: string
+  description: string
+  payload: Record<string, any>
+  status: 'QUEUED' | 'APPROVED' | 'REJECTED' | 'SNOOZED'
+  why_panel: {
+    event: string
+    evidence: Record<string, any>
+    financial_impact_at_current_volume: string
+    alternatives_considered: string[]
+    confidence: 'high' | 'medium' | 'low'
+  }
+  snoozed_until?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface AutomationRule {
+  id: number
+  name: string
+  rule_type: string
+  condition_json: Record<string, any>
+  action_json: Record<string, any>
+  enabled: boolean
+  cooldown_hours: number
+  created_at?: string
+  updated_at?: string
+}
+
+export interface AuditEventItem {
+  id: number
+  event_type: string
+  actor: string
+  action: string
+  details: Record<string, any>
+  timestamp?: string
+}
+
+export interface ConnectionStatusItem {
+  connected: boolean
+  marketplace_id?: string
+  marketplace_name?: string
+  currency?: string
+  last_sync?: string
+  rate_limit_state?: string
+  capabilities?: Record<string, string>
 }
