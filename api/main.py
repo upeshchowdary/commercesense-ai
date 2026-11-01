@@ -55,12 +55,30 @@ from api.routers import (
     signals,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
+def _cors_origins() -> list[str]:
+    """Build the CORS allow-list from environment variables so Render
+    and local dev both work without hardcoded URLs."""
+    origins = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-    ],
+    ]
+    # FRONTEND_ORIGIN is injected automatically by render.yaml
+    frontend = os.environ.get("FRONTEND_ORIGIN", "")
+    if frontend:
+        # Render provides the bare hostname; ensure https:// scheme
+        if not frontend.startswith("http"):
+            frontend = f"https://{frontend}"
+        origins.append(frontend)
+    # Any extra comma-separated origins (e.g. custom domain)
+    extra = os.environ.get("EXTRA_CORS_ORIGINS", "")
+    if extra:
+        origins.extend(o.strip() for o in extra.split(",") if o.strip())
+    return origins
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

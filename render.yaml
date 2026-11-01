@@ -1,0 +1,62 @@
+services:
+  # ── Backend: FastAPI Python Web Service ─────────────────────────────────────
+  - type: web
+    name: seller-copilot-api
+    runtime: python
+    region: oregon
+    plan: free
+    rootDir: .
+    buildCommand: pip install -r render-requirements.txt
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12"
+      - key: FREE_ONLY_MODE
+        value: "true"
+      - key: GEMINI_API_KEYS
+        sync: false          # Set this manually in the Render dashboard
+      - key: DATABASE_URL
+        fromDatabase:
+          name: seller-copilot-db
+          property: connectionString
+      - key: FRONTEND_ORIGIN
+        fromService:
+          name: seller-copilot-frontend
+          type: web
+          property: host
+
+  # ── Frontend: React/Vite Static Site ────────────────────────────────────────
+  - type: web
+    name: seller-copilot-frontend
+    runtime: static
+    region: oregon
+    plan: free
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=0, must-revalidate
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://seller-copilot-api.onrender.com/api/:splat
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        value: https://seller-copilot-api.onrender.com
+
+databases:
+  # ── PostgreSQL (free tier) ───────────────────────────────────────────────────
+  - name: seller-copilot-db
+    databaseName: commercesense_db
+    user: commercesense
+    plan: free
+    region: oregon
