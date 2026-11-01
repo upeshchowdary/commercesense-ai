@@ -23,9 +23,9 @@ rapidfuzz>=3.0.0
 # Time-series forecasting & intermittent demand models (Phase 5)
 statsforecast>=2.0.0
 
-# Optional -- Review Intelligence's semantic theme clustering (spec 10.4).
-# review_engine.semantic_theme_clusters() degrades to [] gracefully if
-# these aren't installed; nothing else in the app depends on them.
-sentence-transformers>=3.0.0
-scikit-learn>=1.4.0
-
+# Optional -- Review Intelligence semantic clustering.
+# Intentionally excluded from the Vercel serverless dependency set because
+# sentence-transformers pulls in PyTorch and exceeds Vercel's 500 MB function
+# bundle limit. The deterministic review-theme analysis works without it.
+# For local semantic clustering only, install separately:
+#   pip install sentence-transformers scikit-learn
