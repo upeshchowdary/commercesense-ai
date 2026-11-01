@@ -20,8 +20,12 @@ amzn-sp-api>=1.13.0
 # Competitor matching & string metrics (Phase 3)
 rapidfuzz>=3.0.0
 
-# Time-series forecasting & intermittent demand models (Phase 5)
-statsforecast>=2.0.0
+# Time-series forecasting (intelligence/forecasting_engine.py) -- intentionally
+# excluded from this Vercel dependency set: statsforecast pulls in pyarrow,
+# pandas, scipy, statsmodels and fugue (~360 MB), which pushes the function
+# bundle past Vercel's 500 MB limit. No API route imports the forecasting
+# engine. It IS installed on Render (render-requirements.txt). For local
+# forecasting tests:  pip install "statsforecast>=2.0.0"
 
 # Optional -- Review Intelligence semantic clustering.
 # Intentionally excluded from the Vercel serverless dependency set because

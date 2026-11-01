@@ -20,7 +20,7 @@ import secrets
 from pathlib import Path
 from typing import Optional
 
-VAULT_DIR = Path(__file__).resolve().parent.parent / ".vault"
+VAULT_DIR = Path(os.environ.get("VAULT_DIR") or (Path(__file__).resolve().parent.parent / ".vault"))
 KEY_FILE = VAULT_DIR / "master.key"
 _CACHED_MASTER_KEY: Optional[bytes] = None
 

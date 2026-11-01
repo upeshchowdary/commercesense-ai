@@ -25,9 +25,17 @@ _db_path_obj = Path(_env_db_path)
 DB_PATH = _db_path_obj if _db_path_obj.is_absolute() else (PROJECT_ROOT / _db_path_obj)
 
 
+_EPHEMERAL = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+
+
 def get_connection() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    if _EPHEMERAL:
+        # Serverless: the DB lives in a per-instance /tmp that vanishes
+        # anyway, so fsync-per-commit durability buys nothing and makes
+        # first-boot seeding (hundreds of single-row commits) slow.
+        conn.execute("PRAGMA synchronous=OFF")
     return conn
 
 

@@ -130,6 +130,10 @@ app.include_router(market_radar.router, prefix="/api")
 app.include_router(actions.router, prefix="/api/v1")
 app.include_router(actions.router, prefix="/api")
 
+from api.bootstrap import seed_if_empty, seed_status  # noqa: E402
+
+seed_if_empty()  # no-op outside serverless hosts
+
 
 @app.get("/api/health")
 def health() -> dict:
@@ -142,4 +146,6 @@ def health() -> dict:
         "tavily_api_key_set": bool(os.environ.get("TAVILY_API_KEY")),
         "llm_provider": os.environ.get("LLM_PROVIDER", "ollama"),
         "feature_flags": FEATURE_FLAGS,
+        "serverless": deps.is_serverless(),
+        "serverless_seed": seed_status() if deps.is_serverless() else None,
     }
